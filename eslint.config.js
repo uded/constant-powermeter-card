@@ -1,6 +1,6 @@
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'coverage/', 'docs/', '.superpowers/'] },
+  { ignores: ['dist/', 'node_modules/', 'coverage/', 'docs/', '.superpowers/', '.claude/'] },
   ...tseslint.configs.recommended,
 );
