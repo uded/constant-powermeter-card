@@ -1,0 +1,49 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install dependencies
+    cmds:
+      - npm install
+
+  lint:
+    desc: Run ESLint and Prettier check
+    cmds:
+      - npx eslint .
+      - npx prettier --check .
+
+  typecheck:
+    desc: Type-check with tsc
+    cmds:
+      - npx tsc
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - npx vitest run
+
+  check:
+    desc: Lint, typecheck and test
+    cmds:
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  build:
+    desc: Build dist/constant-powermeter-card.js
+    cmds:
+      - npx vite build
+
+  dev:
+    desc: Watch build and serve the dev/ harness
+    deps: [watch, serve]
+
+  watch:
+    internal: true
+    cmds:
+      - npx vite build --watch
+
+  serve:
+    internal: true
+    cmds:
+      - npx vite preview --outDir dev --port 5173

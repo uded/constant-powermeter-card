@@ -1,0 +1,20 @@
+{
+  "name": "constant-powermeter-card",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Home Assistant Lovelace card showing power meters with sparkline and bar",
+  "dependencies": {
+    "lit": "3.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "eslint": "10.15.0",
+    "happy-dom": "21.0.4",
+    "prettier": "3.10.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
+  }
+}
