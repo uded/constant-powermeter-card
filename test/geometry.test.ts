@@ -26,6 +26,14 @@ describe('sparklineRange', () => {
   });
 });
 
+describe('sparklinePaths single-point runs', () => {
+  it('draws an isolated bucket as a zero-length segment', () => {
+    const p = sparklinePaths([null, 2, null], { lo: 0, hi: 4 }, { w: 60, h: 24 });
+    expect(p.lines).toEqual(['M30 12 L30 12']);
+    expect(p.areas).toHaveLength(1);
+  });
+});
+
 describe('sparklinePaths', () => {
   it('splits paths at gaps', () => {
     const p = sparklinePaths([1, 2, null, 3, 4], { lo: 0, hi: 4 }, { w: 60, h: 24 });

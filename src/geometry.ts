@@ -49,6 +49,12 @@ export function sparklineRange(
   return { lo, hi };
 }
 
+/** valueY maps a value to a y coordinate (0 = top) for the given range and height, clamped. */
+export function valueY(v: number, r: { lo: number; hi: number }, h: number): number {
+  const span = r.hi - r.lo || 1;
+  return h - ((clamp(v, r.lo, r.hi) - r.lo) / span) * h;
+}
+
 const fmt = (n: number): string => String(Math.round(n * 100) / 100);
 
 /** sparklinePaths builds one line and one closed area path per contiguous run of data. */
@@ -57,17 +63,18 @@ export function sparklinePaths(
   r: { lo: number; hi: number },
   size: { w: number; h: number },
 ): { lines: string[]; areas: string[] } {
-  const span = r.hi - r.lo || 1;
   const x = (i: number): number => (buckets.length > 1 ? (i * size.w) / (buckets.length - 1) : 0);
-  const y = (v: number): number => size.h - ((clamp(v, r.lo, r.hi) - r.lo) / span) * size.h;
-  const base = y(clamp(0, r.lo, r.hi));
+  const y = (v: number): number => valueY(v, r, size.h);
+  const base = y(0);
 
   const lines: string[] = [];
   const areas: string[] = [];
   let run: { x: number; y: number }[] = [];
   const flush = (): void => {
     if (run.length > 0) {
-      const line = run.map((p, k) => `${k === 0 ? 'M' : 'L'}${fmt(p.x)} ${fmt(p.y)}`).join(' ');
+      // A lone point becomes a zero-length segment so round caps can draw it.
+      const pts = run.length === 1 ? [run[0], run[0]] : run;
+      const line = pts.map((p, k) => `${k === 0 ? 'M' : 'L'}${fmt(p.x)} ${fmt(p.y)}`).join(' ');
       const first = run[0];
       const last = run[run.length - 1];
       lines.push(line);
