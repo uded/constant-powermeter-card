@@ -13,6 +13,8 @@ import {
   meterHelper,
   meterPatch,
   meterSchema,
+  entitySelector,
+  usedEntities,
   meterTitle,
   moveMeter,
   PANEL_DEFAULTS,
@@ -36,8 +38,8 @@ const ICON_DOWN = 'M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.
 const ICON_DELETE =
   'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z';
 
-const ADD_SCHEMA: FormSchema[] = [
-  { name: 'entity', selector: { entity: { filter: { domain: 'sensor' } } } },
+const addSchema = (c: CardConfig): FormSchema[] => [
+  { name: 'entity', selector: entitySelector(usedEntities(c)) },
 ];
 
 type ValueChanged = CustomEvent<{ value: FormData }>;
@@ -194,7 +196,7 @@ export class ConstantPowermeterCardEditor extends LitElement {
           class="add"
           .hass=${this.hass}
           .data=${{}}
-          .schema=${ADD_SCHEMA}
+          .schema=${addSchema(c)}
           .computeLabel=${() => 'Add meter'}
           @value-changed=${(e: ValueChanged) => this.onAdd(c, e)}
         ></ha-form>
@@ -257,7 +259,7 @@ export class ConstantPowermeterCardEditor extends LitElement {
           class="meter"
           .hass=${this.hass}
           .data=${data}
-          .schema=${meterSchema(String(data.tap_action))}
+          .schema=${meterSchema(String(data.tap_action), usedEntities(c, i))}
           .error=${resolved ? meterErrors(resolved, obj) : {}}
           .computeLabel=${label}
           .computeHelper=${(s: FormSchema) => meterHelper(s.name, obj, resolved, attrs)}

@@ -10,6 +10,8 @@ import {
   meterHelper,
   meterPatch,
   meterSchema,
+  entitySelector,
+  usedEntities,
   meterTitle,
   moveMeter,
   panelFormData,
@@ -240,6 +242,16 @@ describe('meter form', () => {
     expect(meterSchema('more-info')[0]).toMatchObject({
       name: 'entity',
       selector: { entity: { filter: { domain: 'sensor' } } },
+    });
+  });
+
+  it('hides entities already used by other meters', () => {
+    const c = { type: 'x', meters: ['sensor.a', { entity: 'sensor.b' }, { entity: '' }] };
+    expect(usedEntities(c)).toEqual(['sensor.a', 'sensor.b']);
+    expect(usedEntities(c, 0)).toEqual(['sensor.b']);
+    expect(entitySelector([])).toEqual({ entity: { filter: { domain: 'sensor' } } });
+    expect(meterSchema('more-info', usedEntities(c, 0))[0].selector).toEqual({
+      entity: { filter: { domain: 'sensor' }, exclude_entities: ['sensor.b'] },
     });
   });
 

@@ -321,10 +321,25 @@ export function meterPatch(
 
 const step = { step: 'any', mode: 'box' };
 
+/** usedEntities lists the entity ids of every meter, skipping the meter at index `skip`. */
+export function usedEntities(c: CardConfig, skip?: number): string[] {
+  return c.meters
+    .filter((_, i) => i !== skip)
+    .map((m) => (typeof m === 'string' ? m : m.entity))
+    .filter((id): id is string => typeof id === 'string' && id !== '');
+}
+
+/** entitySelector picks a sensor, hiding the entities in `exclude`. */
+export function entitySelector(exclude: string[] = []): FormSchema['selector'] {
+  const entity: Record<string, unknown> = { filter: { domain: 'sensor' } };
+  if (exclude.length > 0) entity.exclude_entities = exclude;
+  return { entity };
+}
+
 /** meterSchema is the meter form; the path field appears only for navigate and url. */
-export function meterSchema(action: string): FormSchema[] {
+export function meterSchema(action: string, exclude: string[] = []): FormSchema[] {
   const schema: FormSchema[] = [
-    { name: 'entity', required: true, selector: { entity: { filter: { domain: 'sensor' } } } },
+    { name: 'entity', required: true, selector: entitySelector(exclude) },
     { name: 'name', selector: { text: {} } },
     { name: 'unit', selector: { text: {} } },
     { name: 'precision', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },
