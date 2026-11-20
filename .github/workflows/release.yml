@@ -41,8 +41,11 @@ jobs:
       - name: 🏷️ Verify tag matches package.json version
         run: test "v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
 
+      - name: 📝 Extract release notes from CHANGELOG.md
+        run: scripts/release-notes.sh "${GITHUB_REF_NAME}" > "${RUNNER_TEMP}/notes.md"
+
       - name: 🚀 Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
           files: dist/constant-powermeter-card.js
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/notes.md
