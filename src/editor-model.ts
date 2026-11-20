@@ -119,8 +119,12 @@ export function moveMeter(c: CardConfig, i: number, dir: -1 | 1): CardConfig {
 /** patchMeter expands a bare id to an object and applies patch; undefined or '' deletes a key. */
 export function patchMeter(c: CardConfig, i: number, patch: Partial<MeterConfig>): CardConfig {
   if (!validIndex(c, i)) return c;
+  const before = toMeterObject(c.meters[i]);
+  const after = withPatch(before, patch);
+  // A patch that changes nothing keeps a bare id bare.
+  if (deepEqual(before, after)) return c;
   const meters = [...c.meters];
-  meters[i] = withPatch(toMeterObject(c.meters[i]), patch);
+  meters[i] = after;
   return { ...c, meters };
 }
 
@@ -207,27 +211,78 @@ const DISPLAY_FROM_CHOICE: Record<DisplayChoice, DisplayMode[] | undefined> = {
 };
 
 /** meterFormData flattens a meter config into `ha-form` data; derived values are left out. */
-export function meterFormData(raw: string | MeterConfig): FormData {
+export function meterFormData(raw: string | MeterConfig, pending?: string): FormData {
   const m = toMeterObject(raw);
   const data: FormData = {};
   for (const k of PLAIN_METER_FIELDS) if (m[k] !== undefined) data[k] = m[k];
   data.display = displayChoice(m.display);
   const tap = m.tap_action;
-  data.tap_action = tap?.action ?? 'more-info';
+  data.tap_action = pending ?? tap?.action ?? 'more-info';
   if (tap?.action === 'navigate') data.navigation_path = tap.navigation_path;
   if (tap?.action === 'url') data.url_path = tap.url_path;
   return data;
 }
 
+function nonEmpty(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
+}
+
+/** buildTapAction gives undefined (the more-info default) for navigate or url without a path. */
 function buildTapAction(action: unknown, nav: unknown, url: unknown): TapAction | undefined {
   if (action === 'none') return { action: 'none' };
-  if (action === 'navigate') return { action: 'navigate', navigation_path: String(nav ?? '') };
-  if (action === 'url') return { action: 'url', url_path: String(url ?? '') };
+  const navPath = nonEmpty(nav);
+  if (action === 'navigate' && navPath) return { action: 'navigate', navigation_path: navPath };
+  const urlPath = nonEmpty(url);
+  if (action === 'url' && urlPath) return { action: 'url', url_path: urlPath };
   return undefined;
 }
 
-/** meterPatch turns a meter form diff into a MeterConfig patch for patchMeter. */
-export function meterPatch(diff: FormData, current: MeterConfig): Partial<MeterConfig> {
+/**
+ * pendingTapAction is the navigate or url choice the editor must remember while its path is
+ * still empty, since such an action is not written to the config.
+ */
+export function pendingTapAction(value: FormData): string | undefined {
+  if (value.tap_action === 'navigate' && !nonEmpty(value.navigation_path)) return 'navigate';
+  if (value.tap_action === 'url' && !nonEmpty(value.url_path)) return 'url';
+  return undefined;
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((v, i) => deepEqual(v, b[i]))
+    );
+  }
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return (
+    ka.length === kb.length &&
+    ka.every(
+      (k) =>
+        k in b && deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+    )
+  );
+}
+
+/** configEqual reports whether two card configs are structurally the same. */
+export function configEqual(a: CardConfig, b: CardConfig): boolean {
+  return deepEqual(a, b);
+}
+
+/**
+ * meterPatch turns a meter form diff into a MeterConfig patch for patchMeter. `pending` is the
+ * tap action the editor holds while its path is empty (see pendingTapAction).
+ */
+export function meterPatch(
+  diff: FormData,
+  current: MeterConfig,
+  pending?: string,
+): Partial<MeterConfig> {
   const patch: Record<string, unknown> = {};
   for (const k of PLAIN_METER_FIELDS) {
     if (k in diff) patch[k] = isEmpty(diff[k]) ? undefined : diff[k];
@@ -239,7 +294,7 @@ export function meterPatch(diff: FormData, current: MeterConfig): Partial<MeterC
     const pick = (k: 'navigation_path' | 'url_path') =>
       k in diff ? diff[k] : cur && k in cur ? (cur as Record<string, unknown>)[k] : undefined;
     patch.tap_action = buildTapAction(
-      'tap_action' in diff ? diff.tap_action : (cur?.action ?? 'more-info'),
+      'tap_action' in diff ? diff.tap_action : (pending ?? cur?.action ?? 'more-info'),
       pick('navigation_path'),
       pick('url_path'),
     );
@@ -312,10 +367,13 @@ export function meterHelper(
   attrs: EntityAttributes = {},
 ): string | undefined {
   const value = raw[field as keyof MeterConfig];
-  if (field === 'min' && m?.twoSided) return MESSAGES.twoSided;
-  if (value !== undefined && value !== '') return undefined;
-  if ((THRESHOLDS as readonly string[]).includes(field) && m) {
-    return `Default: ${fmt(defaultThresholds(m.min, m.max)[field as Threshold])}`;
+  const empty = value === undefined || value === '';
+  const threshold = (THRESHOLDS as readonly string[]).includes(field);
+  if (m?.twoSided && (field === 'min' || (threshold && !empty))) return MESSAGES.twoSided;
+  if (!empty) return undefined;
+  if (threshold && m) {
+    const def = `Default: ${fmt(defaultThresholds(m.min, m.max)[field as Threshold])}`;
+    return m.twoSided ? `${def} · two-sided, thresholds apply to |value|` : def;
   }
   if (field === 'min') return `Default: ${DEFAULT_MIN}`;
   if (field === 'max') return `Default: ${DEFAULT_MAX}`;

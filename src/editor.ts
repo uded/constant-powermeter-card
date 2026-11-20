@@ -3,6 +3,7 @@ import type { CardConfig, MeterConfig } from './config';
 import {
   addMeter,
   bandStops,
+  configEqual,
   COLOR_LABELS,
   COLOR_LEVELS,
   formDiff,
@@ -21,6 +22,7 @@ import {
   patchCard,
   patchColor,
   patchMeter,
+  pendingTapAction,
   removeMeter,
   resolveMeterAt,
   type ColorLevel,
@@ -45,18 +47,27 @@ export class ConstantPowermeterCardEditor extends LitElement {
   static properties = {
     hass: { attribute: false },
     config: { state: true },
+    pending: { state: true },
   };
 
   declare hass?: HomeAssistant;
   declare config?: CardConfig;
+  /** Navigate or url choices per meter index whose path is still empty (not in the config). */
+  declare pending: Record<number, string>;
 
-  /** setConfig is called by HA with the current card config. */
-  setConfig(config: CardConfig): void {
-    this.config = config;
+  constructor() {
+    super();
+    this.pending = {};
   }
 
-  private commit(next: CardConfig): void {
-    if (next === this.config) return;
+  /** setConfig is called by HA with the current card config; a missing meters list is []. */
+  setConfig(config: CardConfig): void {
+    this.config = { ...config, meters: Array.isArray(config.meters) ? config.meters : [] };
+  }
+
+  private commit(next: CardConfig, structural = false): void {
+    if (structural) this.pending = {};
+    if (this.config && configEqual(next, this.config)) return;
     this.config = next;
     this.dispatchEvent(
       new CustomEvent('config-changed', {
@@ -87,21 +98,33 @@ export class ConstantPowermeterCardEditor extends LitElement {
     e.stopPropagation();
     const raw = c.meters[i];
     const current: MeterConfig = typeof raw === 'string' ? { entity: raw } : raw;
-    const diff = formDiff(meterFormData(raw), e.detail.value);
+    const held = this.pending[i];
+    const diff = formDiff(meterFormData(raw, held), e.detail.value);
     if (Object.keys(diff).length === 0) return;
-    this.commit(patchMeter(c, i, meterPatch(diff, current)));
+    const pending = pendingTapAction(e.detail.value);
+    if (pending !== held) {
+      const next = { ...this.pending };
+      if (pending) next[i] = pending;
+      else delete next[i];
+      this.pending = next;
+    }
+    this.commit(patchMeter(c, i, meterPatch(diff, current, held)));
   }
 
   private onAdd(c: CardConfig, e: ValueChanged): void {
     e.stopPropagation();
     const entity = e.detail.value.entity;
-    if (typeof entity === 'string' && entity !== '') this.commit(addMeter(c, entity));
+    if (typeof entity === 'string' && entity !== '') this.commit(addMeter(c, entity), true);
   }
 
   private onButton(e: Event, action: () => CardConfig): void {
-    // Keep the click from toggling the expansion panel the button sits in.
     e.stopPropagation();
-    this.commit(action());
+    this.commit(action(), true);
+  }
+
+  /** Keeps clicks and Enter/Space on the header buttons from toggling the expansion panel. */
+  private stop(e: Event): void {
+    e.stopPropagation();
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -161,11 +184,11 @@ export class ConstantPowermeterCardEditor extends LitElement {
     const obj: MeterConfig = typeof raw === 'string' ? { entity: raw } : raw;
     const attrs = this.attrs(obj.entity);
     const resolved = resolveMeterAt(c, i);
-    const data = meterFormData(raw);
+    const data = meterFormData(raw, this.pending[i]);
     const last = c.meters.length - 1;
     return html`
       <ha-expansion-panel outlined data-index=${i} .header=${meterTitle(raw, attrs)}>
-        <div slot="icons" class="buttons">
+        <div slot="icons" class="buttons" @click=${this.stop} @keydown=${this.stop}>
           <ha-icon-button
             class="up"
             .label=${'Move up'}

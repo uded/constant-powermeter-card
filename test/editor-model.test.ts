@@ -3,6 +3,7 @@ import { normalizeConfig, type CardConfig, type MeterConfig } from '../src/confi
 import {
   addMeter,
   bandStops,
+  configEqual,
   formDiff,
   meterErrors,
   meterFormData,
@@ -16,6 +17,7 @@ import {
   patchCard,
   patchColor,
   patchMeter,
+  pendingTapAction,
   removeMeter,
 } from '../src/editor-model';
 
@@ -42,6 +44,9 @@ describe('meter list', () => {
     expect(meter.max).toBe(3000);
     expect(next.meters[0]).toEqual({ entity: 'sensor.a', max: 4000 });
     expect(patchMeter(c, 5, { max: 1 })).toBe(c);
+    expect(patchMeter(c, 0, { max: 3000, name: undefined })).toBe(c);
+    const bare: CardConfig = { type: 'x', meters: ['sensor.a'] };
+    expect(patchMeter(bare, 0, { name: '' })).toBe(bare);
   });
 
   it('does not write derived thresholds', () => {
@@ -161,19 +166,42 @@ describe('meter form', () => {
     const m: MeterConfig = { entity: 'a' };
     expect(meterPatch({ tap_action: 'none' }, m)).toEqual({ tap_action: { action: 'none' } });
     expect(meterPatch({ tap_action: 'more-info' }, m)).toEqual({ tap_action: undefined });
-    expect(meterPatch({ tap_action: 'navigate' }, m)).toEqual({
-      tap_action: { action: 'navigate', navigation_path: '' },
-    });
-    const nav: MeterConfig = {
-      entity: 'a',
-      tap_action: { action: 'navigate', navigation_path: '' },
-    };
-    expect(meterPatch({ navigation_path: '/energy' }, nav)).toEqual({
+    expect(meterPatch({ navigation_path: '/energy' }, m, 'navigate')).toEqual({
       tap_action: { action: 'navigate', navigation_path: '/energy' },
     });
     expect(meterPatch({ tap_action: 'url', url_path: 'https://x' }, m)).toEqual({
       tap_action: { action: 'url', url_path: 'https://x' },
     });
+  });
+
+  it('never writes an empty navigate or url path', () => {
+    const m: MeterConfig = { entity: 'a' };
+    expect(meterPatch({ tap_action: 'navigate' }, m)).toEqual({ tap_action: undefined });
+    expect(meterPatch({ tap_action: 'url', url_path: '' }, m)).toEqual({ tap_action: undefined });
+    const nav: MeterConfig = {
+      entity: 'a',
+      tap_action: { action: 'navigate', navigation_path: '/x' },
+    };
+    expect(meterPatch({ navigation_path: '' }, nav)).toEqual({ tap_action: undefined });
+  });
+
+  it('pendingTapAction holds navigate or url until a path is typed', () => {
+    expect(pendingTapAction({ tap_action: 'navigate' })).toBe('navigate');
+    expect(pendingTapAction({ tap_action: 'url', url_path: '' })).toBe('url');
+    expect(pendingTapAction({ tap_action: 'navigate', navigation_path: '/x' })).toBeUndefined();
+    expect(pendingTapAction({ tap_action: 'none' })).toBeUndefined();
+    expect(meterFormData('a', 'navigate').tap_action).toBe('navigate');
+  });
+
+  it('configEqual compares deeply', () => {
+    const a: CardConfig = {
+      type: 'x',
+      colors: { normal: '#0f0' },
+      meters: [{ entity: 'a', display: ['bar'] }],
+    };
+    expect(configEqual(a, structuredClone(a))).toBe(true);
+    expect(configEqual(a, { ...a, meters: [{ entity: 'a', display: ['sparkline'] }] })).toBe(false);
+    expect(configEqual(a, { ...a, hours: 2 })).toBe(false);
   });
 
   it('passes plain fields through and never clears the entity', () => {
@@ -206,7 +234,13 @@ describe('meter form', () => {
 
     const two: MeterConfig = { entity: 'a', min: -1000, max: 3000 };
     expect(meterHelper('min', two, resolve(two))).toBe('Two-sided: thresholds apply to |value|');
-    expect(meterHelper('normal', two, resolve(two))).toBe('Default: 600');
+    expect(meterHelper('normal', two, resolve(two))).toBe(
+      'Default: 600 · two-sided, thresholds apply to |value|',
+    );
+    const twoSet: MeterConfig = { ...two, warning: 2000 };
+    expect(meterHelper('warning', twoSet, resolve(twoSet))).toBe(
+      'Two-sided: thresholds apply to |value|',
+    );
   });
 
   it('helpers show name and unit from entity attributes', () => {

@@ -97,12 +97,52 @@ describe('ConstantPowermeterCardEditor', () => {
     const { el, events } = await mount(base);
     const form = q(el, 'ha-form.meter');
     change(form, { ...form.data, tap_action: 'navigate' });
+    expect(events).toHaveLength(0);
+    await el.updateComplete;
+    const next = q(el, 'ha-form.meter');
+    expect(next.data.tap_action).toBe('navigate');
+    expect(next.schema.map((s) => s.name)).toContain('navigation_path');
+
+    change(next, { ...next.data, navigation_path: '/energy' });
     expect(events[0].detail.config.meters[0]).toEqual({
       entity: 'sensor.a',
-      tap_action: { action: 'navigate', navigation_path: '' },
+      tap_action: { action: 'navigate', navigation_path: '/energy' },
     });
-    await el.updateComplete;
-    expect(q(el, 'ha-form.meter').schema.map((s) => s.name)).toContain('navigation_path');
+  });
+
+  it('does not emit when nothing changes', async () => {
+    const { el, events } = await mount(base);
+    const form = q(el, 'ha-form.meter');
+    change(form, { ...form.data, name: '' });
+    change(q(el, 'ha-form.color-normal'), { normal: '' });
+    expect(events).toHaveLength(0);
+  });
+
+  it.each([
+    ['an empty meters list', { type: 'custom:constant-powermeter-card', meters: [] }],
+    ['a missing meters key', { type: 'custom:constant-powermeter-card' }],
+  ])('starts from %s', async (_, config) => {
+    const { el, events } = await mount(config as CardConfig);
+    expect(config).not.toHaveProperty('meters.0');
+    change(q(el, 'ha-form.add'), { entity: 'sensor.b' });
+    expect(events[0].detail.config).toEqual({
+      type: 'custom:constant-powermeter-card',
+      meters: [{ entity: 'sensor.b' }],
+    });
+  });
+
+  it('keeps button keydown and click from reaching the expansion panel', async () => {
+    const { el } = await mount({ ...base, meters: ['sensor.a', 'sensor.b'] });
+    const panel = q<HTMLElement>(el, '[data-index="0"]');
+    const seen: string[] = [];
+    panel.addEventListener('keydown', () => seen.push('keydown'));
+    panel.addEventListener('click', () => seen.push('click'));
+    const down = q<HTMLElement>(el, '[data-index="0"] .down');
+    down.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }),
+    );
+    down.click();
+    expect(seen).toEqual([]);
   });
 
   it('paints the band preview strip from the thresholds', async () => {
