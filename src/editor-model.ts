@@ -286,6 +286,49 @@ function deepEqual(a: unknown, b: unknown): boolean {
   );
 }
 
+function entityOf(m: string | MeterConfig): string {
+  return typeof m === 'string' ? m : (m.entity ?? '');
+}
+
+/**
+ * rekeyMeters keeps a stable key per meter across config changes, so editor state
+ * (an open panel, a pending tap action) follows the meter when meters are moved,
+ * removed or added, here or in YAML. A new meter first takes the key of an old meter
+ * with the same entity; failing that, the key that sat at its position (the entity
+ * was changed in place); otherwise a fresh key.
+ */
+export function rekeyMeters(
+  oldMeters: (string | MeterConfig)[],
+  oldKeys: number[],
+  newMeters: (string | MeterConfig)[],
+  nextKey: number,
+): { keys: number[]; nextKey: number } {
+  const used = new Set<number>();
+  const keys: (number | undefined)[] = newMeters.map(() => undefined);
+  newMeters.forEach((m, i) => {
+    const entity = entityOf(m);
+    if (entity === '') return;
+    const j = oldMeters.findIndex(
+      (o, k) => entityOf(o) === entity && oldKeys[k] !== undefined && !used.has(oldKeys[k]),
+    );
+    if (j >= 0) {
+      keys[i] = oldKeys[j];
+      used.add(oldKeys[j]);
+    }
+  });
+  let next = nextKey;
+  const result = keys.map((k, i) => {
+    if (k !== undefined) return k;
+    const atSameIndex = oldKeys[i];
+    if (atSameIndex !== undefined && !used.has(atSameIndex)) {
+      used.add(atSameIndex);
+      return atSameIndex;
+    }
+    return next++;
+  });
+  return { keys: result, nextKey: next };
+}
+
 /** configEqual reports whether two card configs are structurally the same. */
 export function configEqual(a: CardConfig, b: CardConfig): boolean {
   return deepEqual(a, b);

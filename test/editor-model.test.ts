@@ -20,8 +20,38 @@ import {
   patchColor,
   patchMeter,
   pendingTapAction,
+  rekeyMeters,
   removeMeter,
 } from '../src/editor-model';
+
+describe('rekeyMeters', () => {
+  const old = ['sensor.a', { entity: 'sensor.b' }, 'sensor.c'];
+  const keys = [0, 1, 2];
+  it('keeps keys when nothing changes', () => {
+    expect(rekeyMeters(old, keys, old, 3)).toEqual({ keys: [0, 1, 2], nextKey: 3 });
+  });
+  it('moves a key with its meter', () => {
+    const moved = [old[1], old[0], old[2]];
+    expect(rekeyMeters(old, keys, moved, 3).keys).toEqual([1, 0, 2]);
+  });
+  it('drops the removed meter key and gives an added meter a fresh one', () => {
+    expect(rekeyMeters(old, keys, [old[0], old[2]], 3).keys).toEqual([0, 2]);
+    expect(rekeyMeters(old, keys, [...old, 'sensor.d'], 3)).toEqual({
+      keys: [0, 1, 2, 3],
+      nextKey: 4,
+    });
+  });
+  it('keeps the key when a meter changes entity in place', () => {
+    const changed = [old[0], { entity: 'sensor.x' }, old[2]];
+    expect(rekeyMeters(old, keys, changed, 3).keys).toEqual([0, 1, 2]);
+  });
+  it('follows a YAML reorder and handles duplicate entities', () => {
+    expect(rekeyMeters(old, keys, ['sensor.c', 'sensor.a', 'sensor.b'], 3).keys).toEqual([2, 0, 1]);
+    expect(rekeyMeters(['sensor.a', 'sensor.a'], [0, 1], ['sensor.a', 'sensor.a'], 2).keys).toEqual(
+      [0, 1],
+    );
+  });
+});
 
 const resolve = (m: string | MeterConfig) => normalizeConfig({ type: 'x', meters: [m] }).meters[0];
 

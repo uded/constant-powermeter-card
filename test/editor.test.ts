@@ -173,6 +173,37 @@ describe('ConstantPowermeterCardEditor', () => {
     expect(events[1].detail.config).toEqual(base);
   });
 
+  it('keeps an open panel with its meter when meters are moved', async () => {
+    const { el } = await mount({ ...base, meters: ['sensor.a', 'sensor.b', 'sensor.c'] });
+    const panels = () => [
+      ...el.shadowRoot!.querySelectorAll<HTMLElement & { expanded?: boolean }>(
+        'ha-expansion-panel',
+      ),
+    ];
+    const openPanel = panels()[0];
+    openPanel.expanded = true;
+
+    q<HTMLElement>(el, '[data-index="0"] .down').click();
+    await el.updateComplete;
+
+    // The same element (still open) now sits second, showing meter A.
+    expect(panels()[1]).toBe(openPanel);
+    expect(openPanel.expanded).toBe(true);
+    expect(openPanel.dataset.index).toBe('1');
+    expect(panels()[0].expanded).toBeFalsy();
+  });
+
+  it('keeps a pending Navigate choice with its meter when meters are moved', async () => {
+    const { el } = await mount({ ...base, meters: ['sensor.a', 'sensor.b'] });
+    const formOf = (i: number) => q(el, `[data-index="${i}"] ha-form.meter`);
+    change(formOf(0), { ...formOf(0).data, tap_action: 'navigate' });
+    await el.updateComplete;
+    q<HTMLElement>(el, '[data-index="0"] .down').click();
+    await el.updateComplete;
+    expect(formOf(1).data.tap_action).toBe('navigate');
+    expect(formOf(0).data.tap_action).not.toBe('navigate');
+  });
+
   it('adds, moves and removes meters', async () => {
     const { el, events } = await mount(base);
     change(q(el, 'ha-form.add'), { entity: 'sensor.b' });

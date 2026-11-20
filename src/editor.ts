@@ -1,4 +1,5 @@
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit';
+import { repeat } from 'lit/directives/repeat.js';
 import type { CardConfig, MeterConfig } from './config';
 import {
   addMeter,
@@ -25,6 +26,7 @@ import {
   patchColor,
   patchMeter,
   pendingTapAction,
+  rekeyMeters,
   removeMeter,
   resolveMeterAt,
   type ColorLevel,
@@ -85,10 +87,13 @@ export class ConstantPowermeterCardEditor extends LitElement {
 
   declare hass?: HomeAssistant;
   declare config?: CardConfig;
-  /** Navigate or url choices per meter index whose path is still empty (not in the config). */
+  /** Navigate or url choices per meter key whose path is still empty (not in the config). */
   declare pending: Record<number, string>;
 
   private loadStarted = false;
+  /** One stable key per meter, so panels and pending choices follow their meter. */
+  private keys: number[] = [];
+  private nextKey = 0;
 
   constructor() {
     super();
@@ -106,13 +111,30 @@ export class ConstantPowermeterCardEditor extends LitElement {
 
   /** setConfig is called by HA with the current card config; a missing meters list is []. */
   setConfig(config: CardConfig): void {
-    this.config = { ...config, meters: Array.isArray(config.meters) ? config.meters : [] };
+    this.apply({ ...config, meters: Array.isArray(config.meters) ? config.meters : [] });
   }
 
-  private commit(next: CardConfig, structural = false): void {
-    if (structural) this.pending = {};
-    if (this.config && configEqual(next, this.config)) return;
+  /** apply stores a new config and carries each meter's key (and pending choice) along. */
+  private apply(next: CardConfig): void {
+    const { keys, nextKey } = rekeyMeters(
+      this.config?.meters ?? [],
+      this.keys,
+      next.meters,
+      this.nextKey,
+    );
+    this.keys = keys;
+    this.nextKey = nextKey;
+    const live = new Set(keys);
+    const pending = Object.fromEntries(
+      Object.entries(this.pending).filter(([k]) => live.has(Number(k))),
+    );
+    if (Object.keys(pending).length !== Object.keys(this.pending).length) this.pending = pending;
     this.config = next;
+  }
+
+  private commit(next: CardConfig): void {
+    if (this.config && configEqual(next, this.config)) return;
+    this.apply(next);
     this.dispatchEvent(
       new CustomEvent('config-changed', {
         detail: { config: next },
@@ -142,14 +164,15 @@ export class ConstantPowermeterCardEditor extends LitElement {
     e.stopPropagation();
     const raw = c.meters[i];
     const current: MeterConfig = typeof raw === 'string' ? { entity: raw } : raw;
-    const held = this.pending[i];
+    const key = this.keys[i];
+    const held = this.pending[key];
     const diff = formDiff(meterFormData(raw, held), e.detail.value);
     if (Object.keys(diff).length === 0) return;
     const pending = pendingTapAction(e.detail.value);
     if (pending !== held) {
       const next = { ...this.pending };
-      if (pending) next[i] = pending;
-      else delete next[i];
+      if (pending) next[key] = pending;
+      else delete next[key];
       this.pending = next;
     }
     this.commit(patchMeter(c, i, meterPatch(diff, current, held)));
@@ -158,12 +181,12 @@ export class ConstantPowermeterCardEditor extends LitElement {
   private onAdd(c: CardConfig, e: ValueChanged): void {
     e.stopPropagation();
     const entity = e.detail.value.entity;
-    if (typeof entity === 'string' && entity !== '') this.commit(addMeter(c, entity), true);
+    if (typeof entity === 'string' && entity !== '') this.commit(addMeter(c, entity));
   }
 
   private onButton(e: Event, action: () => CardConfig): void {
     e.stopPropagation();
-    this.commit(action(), true);
+    this.commit(action());
   }
 
   /** Keeps clicks and Enter/Space on the header buttons from toggling the expansion panel. */
@@ -191,7 +214,11 @@ export class ConstantPowermeterCardEditor extends LitElement {
       </div>
       <div class="section">
         <h3>Meters</h3>
-        ${c.meters.map((_, i) => this.renderMeter(c, i))}
+        ${repeat(
+          c.meters,
+          (_, i) => this.keys[i],
+          (_, i) => this.renderMeter(c, i),
+        )}
         <ha-form
           class="add"
           .hass=${this.hass}
@@ -228,7 +255,7 @@ export class ConstantPowermeterCardEditor extends LitElement {
     const obj: MeterConfig = typeof raw === 'string' ? { entity: raw } : raw;
     const attrs = this.attrs(obj.entity);
     const resolved = resolveMeterAt(c, i);
-    const data = meterFormData(raw, this.pending[i]);
+    const data = meterFormData(raw, this.pending[this.keys[i]]);
     const last = c.meters.length - 1;
     return html`
       <ha-expansion-panel outlined data-index=${i} .header=${meterTitle(raw, attrs)}>
