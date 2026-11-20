@@ -55,9 +55,22 @@ afterEach(() => {
 describe('ConstantPowermeterCard', () => {
   it('registers the element and the card picker entry', () => {
     expect(customElements.get('constant-powermeter-card')).toBe(ConstantPowermeterCard);
-    const cards = (window as unknown as { customCards: { type: string; preview: boolean }[] })
-      .customCards;
-    expect(cards.find((c) => c.type === 'constant-powermeter-card')?.preview).toBe(true);
+    const cards = (
+      window as unknown as {
+        customCards: { type: string; preview: boolean; documentationURL?: string }[];
+      }
+    ).customCards;
+    const entry = cards.find((c) => c.type === 'constant-powermeter-card');
+    expect(entry?.preview).toBe(true);
+    expect(entry?.documentationURL).toBe('https://github.com/uded/constant-powermeter-card');
+  });
+
+  it('logs a version banner that matches package.json', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.resetModules();
+    await import('../src/index');
+    const { version } = await import('../package.json');
+    expect(info).toHaveBeenCalledWith(`constant-powermeter-card v${version}`);
   });
 
   it('renders one row per meter with value and unit', async () => {
