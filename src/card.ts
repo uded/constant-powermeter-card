@@ -502,10 +502,11 @@ export class ConstantPowermeterCard extends LitElement {
 
     let drawing;
     let range;
+    const span = `last ${windowLabel(cfg.hours)}`;
     if (kind === 'stacked') {
       const bands = stackBands(series, untracked);
       range = stackRange(bands);
-      drawing = renderStacked(bands, range);
+      drawing = renderStacked(bands, range, `Stacked power, ${span}`);
     } else {
       const all = [...series];
       if (untracked && totalBuckets) {
@@ -518,7 +519,7 @@ export class ConstantPowermeterCard extends LitElement {
         });
       }
       range = linesRange(all);
-      drawing = renderLines(all, range);
+      drawing = renderLines(all, range, `Power per meter, ${span}`);
     }
     // With no reading at all the range is a placeholder, so it gets no scale label.
     const hasData = [...series.map((s) => s.buckets), totalBuckets ?? []].some((b) =>
@@ -558,11 +559,10 @@ export class ConstantPowermeterCard extends LitElement {
       totalW = v === null ? null : toWatts(v, this.unitOf(total));
     }
     const { slices, center } = donutSlices(items, totalW);
-    const text =
-      slices.length === 0 || center === null
-        ? '—'
-        : this.formatWithUnit(center, this.chartUnit(cfg));
-    return html`<div class="donut">${renderDonut(slices, text)}</div>`;
+    const empty = slices.length === 0 || center === null;
+    const text = empty ? '—' : this.formatWithUnit(center, this.chartUnit(cfg));
+    const label = `Power split, ${empty ? 'no data' : text}`;
+    return html`<div class="donut">${renderDonut(slices, text, label)}</div>`;
   }
 
   private renderRow(

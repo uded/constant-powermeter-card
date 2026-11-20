@@ -1,4 +1,4 @@
-import { html, svg, type SVGTemplateResult, type TemplateResult } from 'lit';
+import { html, nothing, svg, type SVGTemplateResult, type TemplateResult } from 'lit';
 import { valueY } from './geometry';
 import { UNTRACKED_KEY, type Band, type Series, type Slice } from './types/chart';
 
@@ -44,10 +44,10 @@ function zeroLine(range: Range): SVGTemplateResult | string {
   return svg`<path class="zero" d="M0 ${y} L${W} ${y}" fill="none" style="stroke: currentColor; stroke-opacity: 0.3" vector-effect="non-scaling-stroke"></path>`;
 }
 
-/** renderStacked draws one shaded area with a top edge per band. */
-export function renderStacked(bands: Band[], range: Range): SVGTemplateResult {
+/** renderStacked draws one shaded area with a top edge per band; label names it for screen readers. */
+export function renderStacked(bands: Band[], range: Range, label?: string): SVGTemplateResult {
   return svg`
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label=${label ?? nothing}>
       ${zeroLine(range)}
       ${bands.map((b) => {
         const count = Math.min(b.lower.length, b.upper.length);
@@ -70,9 +70,9 @@ export function renderStacked(bands: Band[], range: Range): SVGTemplateResult {
 }
 
 /** renderLines draws one 2 px line per series; the untracked series is dashed. */
-export function renderLines(series: Series[], range: Range): SVGTemplateResult {
+export function renderLines(series: Series[], range: Range, label?: string): SVGTemplateResult {
   return svg`
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label=${label ?? nothing}>
       ${zeroLine(range)}
       ${series.map((s) => {
         const count = s.buckets.length;
@@ -113,10 +113,10 @@ function slicePaths(s: Slice, gap: number): string[] {
 }
 
 /** renderDonut draws the ring with a text in the middle; no slices gives a grey empty ring. */
-export function renderDonut(slices: Slice[], centerText: string): TemplateResult {
+export function renderDonut(slices: Slice[], centerText: string, label?: string): TemplateResult {
   const gap = slices.length > 1 ? GAP_DEG : 0;
   return html`
-    <svg viewBox="0 0 100 100">
+    <svg viewBox="0 0 100 100" role="img" aria-label=${label ?? nothing}>
       ${
         slices.length === 0
           ? svg`<circle class="empty-ring" cx=${RING.c} cy=${RING.c} r=${RING.r} fill="none" style="stroke: var(--divider-color, #e0e0e0)" stroke-width=${RING.w}></circle>`

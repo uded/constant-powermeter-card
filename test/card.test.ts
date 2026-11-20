@@ -729,6 +729,24 @@ describe('combined charts', () => {
     expect(css).toContain('@container (max-width: 328px)');
   });
 
+  it('names the chart drawings for screen readers', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '3844', { unit_of_measurement: 'W' }),
+      'sensor.b': entity('sensor.b', 'unavailable'),
+    });
+    const aria = (el: HTMLElement, sel: string) => {
+      const svg = el.shadowRoot!.querySelector(sel)!;
+      return [svg.getAttribute('role'), svg.getAttribute('aria-label')];
+    };
+    const stacked = await mount({ chart: ['stacked', 'donut'], meters: ['sensor.a'] }, hass);
+    expect(aria(stacked, '.stacked svg')).toEqual(['img', 'Stacked power, last 1 h']);
+    expect(aria(stacked, '.donut svg')).toEqual(['img', 'Power split, 3,844 W']);
+    const lines = await mount({ chart: 'lines', hours: 0.5, meters: ['sensor.a'] }, hass);
+    expect(aria(lines, '.lines svg')).toEqual(['img', 'Power per meter, last 30 min']);
+    const empty = await mount({ chart: 'donut', meters: ['sensor.b'] }, hass);
+    expect(aria(empty, '.donut svg')).toEqual(['img', 'Power split, no data']);
+  });
+
   it('shows no legend when rows are shown', async () => {
     const el = await mount(
       { chart: 'donut', meters: ['sensor.a'] },
