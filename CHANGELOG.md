@@ -4,6 +4,8 @@ All notable changes to this card. Each release on GitHub uses its section from t
 
 ## [0.2.0] - 2026-11-20
 
+Existing cards without `chart` look and behave exactly as before.
+
 ### Added
 
 - Combined charts above the meter rows, so you can see where your power goes at a glance. Set `chart` to `stacked` (stacked areas over time, one layer per meter), `lines` (one line per meter) or `donut` (the current split). You can combine one time chart with the donut, for example `chart: [stacked, donut]`. Negative meters such as export or battery discharge stack below the zero line, and the donut leaves them out.
@@ -14,10 +16,6 @@ All notable changes to this card. Each release on GitHub uses its section from t
 - The visual editor has a Chart multi-select, a Show rows toggle, a Total meter picker and a Color field per meter. It warns when you pick both Stacked and Lines, or when the meters use units that cannot be converted to each other.
 - The stacked chart averages each time step instead of taking its peak, so the layers add up to the real load. The donut uses live values and works without history. Sparkline peaks are unchanged.
 - In charts, shares and Untracked, `W`, `kW` and `MW` are converted to watts, so meters with different power units can share one chart.
-
-### Changed
-
-- Nothing changes for existing cards. A card without `chart` renders exactly as before, and no option was removed.
 
 ## [0.1.6] - 2026-11-20
 

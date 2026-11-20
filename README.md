@@ -189,7 +189,7 @@ How the charts are built:
 
 #### Rows, legend and shares
 
-With a chart on, each row gets a small color square before the name and a share after the value, for example `1,240 W · 13%`. The share is the meter's live value divided by `total` when it is set, otherwise by the sum of the positive meters. Negative and unavailable meters show no share, and no meter does when the denominator is zero.
+With a chart on, each row gets a small color square before the name and a share after the value, for example `1,240 W · 13%`. The share is the meter's live value divided by `total` when it is set, otherwise by the sum of the positive meters. The sum is also used when `total` is unavailable or 0 or less. Negative and unavailable meters show no share, and no meter does when the denominator is zero.
 
 Set `rows: false` to show only the chart. A compact legend (a color square and the name per meter, plus "Untracked" when `total` is set) then appears under the chart. `rows: false` without any chart is ignored, because the card must show something.
 
@@ -207,7 +207,7 @@ Without `color`, each meter takes the next color from Home Assistant's own graph
 
 #### Units
 
-For the combined charts, shares and Untracked, `W`, `kW` and `MW` are converted to watts before adding, so a `kW` meter and a `W` meter can share a chart. Any other unit is used as reported. If the meters use units that cannot be converted to each other, the editor warns that the chart may be misleading. The rows keep showing each meter's own unit. The label at the top left of the chart is the top of the scale, in the first meter's unit.
+For the combined charts, shares and Untracked, `W`, `kW` and `MW` are converted to watts before adding, so a `kW` meter and a `W` meter can share a chart. Any other unit is used as reported. If the meters use units that cannot be converted to each other, the editor warns that the chart may be misleading. The rows keep showing each meter's own unit. The label at the top left of the chart (the top of the scale) and the number in the donut center are shown in W when the first meter reports `W`, `kW` or `MW`. Otherwise they use the first meter's own unit.
 
 ### Click on a meter
 
