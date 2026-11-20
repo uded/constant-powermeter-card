@@ -55,6 +55,12 @@ interface Tween {
   start: number;
 }
 
+/** CachedBuckets is one resampled history, valid while its stamp matches. */
+interface CachedBuckets {
+  stamp: string;
+  buckets: (number | null)[];
+}
+
 function reducedMotion(): boolean {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
@@ -112,6 +118,8 @@ export class ConstantPowermeterCard extends LitElement {
   private readonly shown = new Map<string, number>();
   private readonly tweens = new Map<string, Tween>();
   private frame?: number;
+  /** Resampled history per entity and mode; see historyBuckets. */
+  private readonly bucketCache = new Map<string, CachedBuckets>();
 
   constructor() {
     super();
@@ -142,6 +150,7 @@ export class ConstantPowermeterCard extends LitElement {
     // A new config may stop showing an entity mid-transition; a leftover tween would
     // keep requesting frames forever, so drop them all and let values snap.
     this.tweens.clear();
+    this.bucketCache.clear();
     this.syncHistory();
     this.syncTick();
   }
@@ -176,6 +185,8 @@ export class ConstantPowermeterCard extends LitElement {
     super.disconnectedCallback();
     this.history?.close();
     this.history = undefined;
+    // A new history source counts its versions from 0 again, so old entries could match.
+    this.bucketCache.clear();
     this.stopTick();
     if (this.frame !== undefined) cancelAnimationFrame(this.frame);
     this.frame = undefined;
@@ -412,14 +423,39 @@ export class ConstantPowermeterCard extends LitElement {
     unit: string | undefined,
     twoSided: boolean,
   ): (number | null)[] {
+    const mode = cfg.timeChart === 'stacked' ? 'mean' : 'peak';
+    const buckets = this.historyBuckets(cfg, now, entity, mode, twoSided);
+    buckets[buckets.length - 1] = parseState(this.hass!.states[entity]?.state);
+    return buckets.map((v) => (v === null ? null : toWatts(v, unit)));
+  }
+
+  /**
+   * historyBuckets resamples an entity's history to BUCKETS buckets: the peak, or the
+   * time-weighted mean. The result is cached per entity, mode and two-sidedness until
+   * the history store changes or a new bucket period starts, so tween frames and other
+   * re-renders do not resample again. It returns a copy, so the caller may set the live
+   * last bucket on it.
+   */
+  private historyBuckets(
+    cfg: ResolvedCard,
+    now: number,
+    entity: string,
+    mode: 'peak' | 'mean',
+    twoSided: boolean,
+  ): (number | null)[] {
+    const width = (cfg.hours * HOUR_MS) / BUCKETS;
+    const stamp = `${this.history?.version ?? -1}|${cfg.hours}|${Math.floor(now / width)}`;
+    const key = `${entity}|${mode}|${mode === 'peak' && twoSided}`;
+    const hit = this.bucketCache.get(key);
+    if (hit?.stamp === stamp) return [...hit.buckets];
     const samples = this.history?.store.get(entity) ?? [];
     const window = { start: now - cfg.hours * HOUR_MS, end: now, count: BUCKETS };
     const buckets =
-      cfg.timeChart === 'stacked'
+      mode === 'mean'
         ? bucketizeMean(samples, window)
         : bucketize(samples, { ...window, twoSided });
-    buckets[buckets.length - 1] = parseState(this.hass!.states[entity]?.state);
-    return buckets.map((v) => (v === null ? null : toWatts(v, unit)));
+    this.bucketCache.set(key, { stamp, buckets });
+    return [...buckets];
   }
 
   private renderChart(cfg: ResolvedCard, now: number): TemplateResult {
@@ -583,12 +619,7 @@ export class ConstantPowermeterCard extends LitElement {
     now: number,
     index: number,
   ) {
-    const buckets = bucketize(this.history?.store.get(m.entity) ?? [], {
-      start: now - cfg.hours * HOUR_MS,
-      end: now,
-      count: BUCKETS,
-      twoSided: m.twoSided,
-    });
+    const buckets = this.historyBuckets(cfg, now, m.entity, 'peak', m.twoSided);
     // The live state always drives the end point, including a gap when it is not numeric.
     buckets[buckets.length - 1] = value;
     return renderSparkline(

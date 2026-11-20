@@ -193,6 +193,26 @@ describe('StreamHistorySource', () => {
     src.close();
   });
 
+  it('changes its version whenever the store changes', async () => {
+    const conn = mockConnection();
+    const src = new StreamHistorySource(
+      conn,
+      () => {},
+      () => 3_600_000,
+    );
+    const seen = [src.version];
+    src.update(['sensor.a'], 1);
+    await vi.advanceTimersByTimeAsync(1000);
+    seen.push(src.version); // the subscribe cleared the store
+    conn.push({ states: { 'sensor.a': [{ s: '7', lu: 100 }] } });
+    seen.push(src.version);
+    await vi.advanceTimersByTimeAsync(60_000);
+    seen.push(src.version); // the trim
+    src.close();
+    seen.push(src.version);
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
   it('keeps the store sorted and deduplicated across history and pushed updates', async () => {
     const conn = mockConnection();
     const src = new StreamHistorySource(

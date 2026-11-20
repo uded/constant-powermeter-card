@@ -82,6 +82,12 @@ export interface HistorySource {
 /** History source backed by the HA `history/stream` websocket subscription. */
 export class StreamHistorySource implements HistorySource {
   readonly store: SampleStore = new Map();
+  private storeVersion = 0;
+
+  /** version changes whenever the store changes, so callers can cache what they derive from it. */
+  get version(): number {
+    return this.storeVersion;
+  }
 
   private activeKey: string | undefined;
   private hours = 0;
@@ -154,6 +160,7 @@ export class StreamHistorySource implements HistorySource {
     this.unsub = undefined;
     if (unsub) void unsub().catch(() => {});
     this.store.clear();
+    this.storeVersion++;
   }
 
   private subscribe(ids: string[], hours: number, key: string): void {
@@ -171,16 +178,17 @@ export class StreamHistorySource implements HistorySource {
     }
 
     const startMs = this.now() - hours * HOUR_MS;
-    this.trimTimer = setInterval(
-      () => trimStore(this.store, this.now() - this.hours * HOUR_MS),
-      TRIM_INTERVAL_MS,
-    );
+    this.trimTimer = setInterval(() => {
+      trimStore(this.store, this.now() - this.hours * HOUR_MS);
+      this.storeVersion++;
+    }, TRIM_INTERVAL_MS);
 
     this.conn
       .subscribeMessage<StreamMessage>(
         (msg) => {
           if (gen !== this.generation) return;
           applyStreamMessage(this.store, msg);
+          this.storeVersion++;
           this.onChange();
         },
         {
