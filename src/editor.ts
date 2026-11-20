@@ -36,11 +36,42 @@ const ICON_DOWN = 'M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.
 const ICON_DELETE =
   'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z';
 
-const ADD_SCHEMA: FormSchema[] = [{ name: 'entity', selector: { entity: { domain: 'sensor' } } }];
+const ADD_SCHEMA: FormSchema[] = [
+  { name: 'entity', selector: { entity: { filter: { domain: 'sensor' } } } },
+];
 
 type ValueChanged = CustomEvent<{ value: FormData }>;
 
 const label = (s: FormSchema) => LABELS[s.name] ?? s.name;
+
+interface CardHelpers {
+  createCardElement(config: Record<string, unknown>): HTMLElement | Promise<HTMLElement>;
+}
+type CardClass = { getConfigElement?: () => unknown };
+
+const editorElementsReady = () =>
+  customElements.get('ha-form') !== undefined &&
+  customElements.get('ha-expansion-panel') !== undefined;
+
+/**
+ * loadHaEditorElements makes HA load ha-form, ha-expansion-panel and the selectors, which
+ * are lazy-loaded and may be missing when a custom card's editor opens first. Creating a
+ * built-in card's editor pulls them in. It never throws, so it is safe outside HA.
+ */
+export async function loadHaEditorElements(): Promise<boolean> {
+  if (editorElementsReady()) return false;
+  try {
+    const w = window as unknown as { loadCardHelpers?: () => Promise<CardHelpers> };
+    const helpers = await w.loadCardHelpers?.();
+    if (!helpers) return false;
+    const card = await helpers.createCardElement({ type: 'entities', entities: [] });
+    const cls = (customElements.get('hui-entities-card') ?? card.constructor) as CardClass;
+    await cls.getConfigElement?.();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** ConstantPowermeterCardEditor is the visual editor; all config logic lives in editor-model. */
 export class ConstantPowermeterCardEditor extends LitElement {
@@ -55,9 +86,20 @@ export class ConstantPowermeterCardEditor extends LitElement {
   /** Navigate or url choices per meter index whose path is still empty (not in the config). */
   declare pending: Record<number, string>;
 
+  private loadStarted = false;
+
   constructor() {
     super();
     this.pending = {};
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    if (this.loadStarted) return;
+    this.loadStarted = true;
+    void loadHaEditorElements().then((loaded) => {
+      if (loaded) this.requestUpdate();
+    });
   }
 
   /** setConfig is called by HA with the current card config; a missing meters list is []. */

@@ -307,7 +307,7 @@ const step = { step: 'any', mode: 'box' };
 /** meterSchema is the meter form; the path field appears only for navigate and url. */
 export function meterSchema(action: string): FormSchema[] {
   const schema: FormSchema[] = [
-    { name: 'entity', required: true, selector: { entity: { domain: 'sensor' } } },
+    { name: 'entity', required: true, selector: { entity: { filter: { domain: 'sensor' } } } },
     { name: 'name', selector: { text: {} } },
     { name: 'unit', selector: { text: {} } },
     { name: 'precision', selector: { number: { min: 0, max: 10, step: 1, mode: 'box' } } },

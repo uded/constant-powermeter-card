@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../src/index';
 import type { CardConfig } from '../src/config';
-import { ConstantPowermeterCardEditor } from '../src/editor';
+import { ConstantPowermeterCardEditor, loadHaEditorElements } from '../src/editor';
 import type { HomeAssistant } from '../src/types/ha';
 import { mockConnection } from './mocks';
 
@@ -190,5 +190,63 @@ describe('ConstantPowermeterCardEditor', () => {
   it('does not offer to delete the only meter', async () => {
     const { el } = await mount(base);
     expect(q<HTMLElement>(el, '[data-index="0"] .delete').hasAttribute('disabled')).toBe(true);
+  });
+});
+
+// Runs last: the final test defines ha-form and ha-expansion-panel for the rest of the file.
+describe('loading the lazy HA editor elements', () => {
+  type W = { loadCardHelpers?: () => Promise<unknown> };
+  afterEach(() => {
+    delete (window as W).loadCardHelpers;
+  });
+
+  function stubHelpers() {
+    const getConfigElement = vi.fn(() => Promise.resolve(document.createElement('div')));
+    class FakeEntitiesCard extends HTMLElement {
+      static getConfigElement = getConfigElement;
+    }
+    customElements.define(
+      `fake-entities-card-${Math.random().toString(36).slice(2)}`,
+      FakeEntitiesCard,
+    );
+    const createCardElement = vi.fn(() => new FakeEntitiesCard());
+    const loadCardHelpers = vi.fn(() => Promise.resolve({ createCardElement }));
+    (window as W).loadCardHelpers = loadCardHelpers;
+    return { loadCardHelpers, createCardElement, getConfigElement };
+  }
+
+  it('asks HA to load them when ha-form is missing, then re-renders', async () => {
+    const h = stubHelpers();
+    const { el } = await mount(base);
+    const update = vi.spyOn(el, 'requestUpdate');
+    await vi.waitFor(() => expect(h.getConfigElement).toHaveBeenCalledTimes(1));
+    expect(h.loadCardHelpers).toHaveBeenCalledTimes(1);
+    expect(h.createCardElement).toHaveBeenCalledWith({ type: 'entities', entities: [] });
+    await vi.waitFor(() => expect(update).toHaveBeenCalled());
+  });
+
+  it('only tries once per editor, even when reattached', async () => {
+    const h = stubHelpers();
+    const { el } = await mount(base);
+    el.remove();
+    document.body.append(el);
+    await vi.waitFor(() => expect(h.getConfigElement).toHaveBeenCalled());
+    expect(h.loadCardHelpers).toHaveBeenCalledTimes(1);
+  });
+
+  it('never throws outside HA', async () => {
+    await expect(loadHaEditorElements()).resolves.toBe(false);
+    (window as W).loadCardHelpers = () => Promise.reject(new Error('nope'));
+    await expect(loadHaEditorElements()).resolves.toBe(false);
+  });
+
+  it('skips the loader when the elements are already defined', async () => {
+    const h = stubHelpers();
+    customElements.define('ha-form', class extends HTMLElement {});
+    customElements.define('ha-expansion-panel', class extends HTMLElement {});
+    await expect(loadHaEditorElements()).resolves.toBe(false);
+    await mount(base);
+    await Promise.resolve();
+    expect(h.loadCardHelpers).not.toHaveBeenCalled();
   });
 });

@@ -219,7 +219,7 @@ describe('meter form', () => {
     expect(names('url')).toContain('url_path');
     expect(meterSchema('more-info')[0]).toMatchObject({
       name: 'entity',
-      selector: { entity: { domain: 'sensor' } },
+      selector: { entity: { filter: { domain: 'sensor' } } },
     });
   });
 
