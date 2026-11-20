@@ -2,6 +2,14 @@
 
 All notable changes to this card. Each release on GitHub uses its section from this file as release notes.
 
+## [0.3.0] - 2026-11-20
+
+### Added
+
+- Tooltips on the combined charts. Hover over the stacked or lines chart, or touch and drag on it, to see a guide line and a box with that moment's time and every meter's value, plus Untracked and the total. The values are exactly what the chart draws there (the average for stacked, the peak for lines); a missing reading shows `—`, and the live last point is labeled `Now`.
+- Hover or tap a donut slice to see its name, value and share.
+- Handy with `rows: false`: the chart alone now tells you the numbers. On touch, the box stays 3 seconds after you lift your finger, and vertical swipes still scroll the dashboard.
+
 ## [0.2.1] - 2026-11-20
 
 ### Changed
@@ -105,6 +113,7 @@ First release.
 - Native Home Assistant look: uses `ha-card` and your theme's colors and fonts.
 - History comes from one `history/stream` subscription per card.
 
+[0.3.0]: https://github.com/uded/constant-powermeter-card/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/uded/constant-powermeter-card/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/uded/constant-powermeter-card/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/uded/constant-powermeter-card/compare/v0.1.5...v0.1.6

@@ -193,6 +193,10 @@ With a chart on, each row gets a small color square before the name and a share 
 
 Set `rows: false` to show only the chart. A compact legend (a color square and the name per meter, plus "Untracked" when `total` is set) then appears under the chart. `rows: false` without any chart is ignored, because the card must show something.
 
+#### Tooltips
+
+Hover over the stacked or lines chart, or touch and drag on it, to see a guide line and a box with that moment's time and every meter's value, plus Untracked and the total when `total` is set. The values are the ones the chart draws at that point: the average for stacked, the peak for lines. A meter with no reading at that time shows `—`. The last point is the live reading and is labeled `Now`. Hover or tap a donut slice to see its name, value and share. With a mouse the box hides when the pointer leaves the chart. With touch it stays for 3 seconds after you lift your finger, and vertical swipes still scroll the page. This is most useful with `rows: false`, where the chart is the only place to read values.
+
 #### Total and Untracked
 
 Set `total` to an entity that reports your whole-house load. The difference between the total and the sum of your meters is shown as an **Untracked** layer, line or slice, in grey and always last. It never goes below zero.
