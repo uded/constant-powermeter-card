@@ -473,7 +473,7 @@ export class ConstantPowermeterCard extends LitElement {
         ]);
     return html`
       <div class="chart">
-        <div class="chart-body">
+        <div class="chart-body ${cfg.timeChart ? '' : 'donut-only'}">
           ${cfg.timeChart ? this.renderTimeChart(cfg, cfg.timeChart, now) : nothing}
           ${cfg.donut ? this.renderDonutChart(cfg, now) : nothing}
         </div>
@@ -761,6 +761,9 @@ export class ConstantPowermeterCard extends LitElement {
       display: flex;
       align-items: center;
       gap: 16px;
+    }
+    .chart-body.donut-only {
+      justify-content: center;
     }
     /* The labels sit in the padding, above and below the plot, so they never cover it. */
     .time {

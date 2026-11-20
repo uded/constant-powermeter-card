@@ -712,6 +712,16 @@ describe('combined charts', () => {
     expect(items.every((i) => i.querySelector('.swatch'))).toBe(true);
   });
 
+  it('centres the donut when there is no time chart', async () => {
+    const hass = makeHass({ 'sensor.a': entity('sensor.a', '300') });
+    const alone = await mount({ chart: 'donut', meters: ['sensor.a'] }, hass);
+    expect(alone.shadowRoot!.querySelector('.chart-body')!.classList).toContain('donut-only');
+    const both = await mount({ chart: ['stacked', 'donut'], meters: ['sensor.a'] }, hass);
+    expect(both.shadowRoot!.querySelector('.chart-body')!.classList).not.toContain('donut-only');
+    const css = (ConstantPowermeterCard.styles as unknown as { cssText: string }).cssText;
+    expect(css).toMatch(/\.chart-body\.donut-only\s*\{\s*justify-content:\s*center/);
+  });
+
   it('shows no legend when rows are shown', async () => {
     const el = await mount(
       { chart: 'donut', meters: ['sensor.a'] },
