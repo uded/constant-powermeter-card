@@ -9,7 +9,8 @@ Existing cards without `chart` look and behave exactly as before.
 ### Added
 
 - Combined charts above the meter rows, so you can see where your power goes at a glance. Set `chart` to `stacked` (stacked areas over time, one layer per meter), `lines` (one line per meter) or `donut` (the current split). You can combine one time chart with the donut, for example `chart: [stacked, donut]`. Negative meters such as export or battery discharge stack below the zero line, and the donut leaves them out.
-- `total`: an optional whole-house load sensor. The gap between it and the sum of your meters is drawn as a grey "Untracked" layer, line or slice, so power that no meter covers is visible instead of hidden. Use a load sensor, not grid import, when you have solar or a battery.
+- `total`: an optional whole-house load sensor. The gap between it and the sum of your meters is drawn as a grey "Untracked" layer, line or slice, so power that no meter covers is visible instead of hidden. Use a load sensor, not grid import, when you have solar or a battery. You can also list the total as a meter to see its own row; that row keeps its sparkline, bar and value, but the total is left out of the chart and the shares so it is not counted twice.
+- Screen readers announce each chart with a short description, for example "Power split, 3,844 W".
 - Each meter row shows its share of the total next to its value, for example `1,240 W · 13%`, whenever a chart is shown.
 - `color` on a meter sets its chart color. Without it, meters use Home Assistant's graph colors, so the chart matches your history graphs.
 - `rows: false` shows only the chart, with a compact legend under it.
