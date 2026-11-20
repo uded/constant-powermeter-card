@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Home Assistant Lovelace card showing power meters with sparkline and bar",
+  "license": "MIT",
   "dependencies": {
     "lit": "3.3.3"
   },

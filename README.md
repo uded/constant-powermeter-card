@@ -199,3 +199,7 @@ The dev harness in `dev/index.html` runs the built card against a mock `hass` an
 ## Credits
 
 Inspired by the linear bar card of [Lirum-Labs/ha-power-gauge](https://github.com/Lirum-Labs/ha-power-gauge). This card is a fresh rewrite and does not contain code from that project.
+
+## License
+
+[MIT](LICENSE)
