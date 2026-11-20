@@ -2,6 +2,23 @@
 
 All notable changes to this card. Each release on GitHub uses its section from this file as release notes.
 
+## [0.2.0] - 2026-11-20
+
+### Added
+
+- Combined charts above the meter rows, so you can see where your power goes at a glance. Set `chart` to `stacked` (stacked areas over time, one layer per meter), `lines` (one line per meter) or `donut` (the current split). You can combine one time chart with the donut, for example `chart: [stacked, donut]`. Negative meters such as export or battery discharge stack below the zero line, and the donut leaves them out.
+- `total`: an optional whole-house load sensor. The gap between it and the sum of your meters is drawn as a grey "Untracked" layer, line or slice, so power that no meter covers is visible instead of hidden. Use a load sensor, not grid import, when you have solar or a battery.
+- Each meter row shows its share of the total next to its value, for example `1,240 W · 13%`, whenever a chart is shown.
+- `color` on a meter sets its chart color. Without it, meters use Home Assistant's graph colors, so the chart matches your history graphs.
+- `rows: false` shows only the chart, with a compact legend under it.
+- The visual editor has a Chart multi-select, a Show rows toggle, a Total meter picker and a Color field per meter. It warns when you pick both Stacked and Lines, or when the meters use units that cannot be converted to each other.
+- The stacked chart averages each time step instead of taking its peak, so the layers add up to the real load. The donut uses live values and works without history. Sparkline peaks are unchanged.
+- In charts, shares and Untracked, `W`, `kW` and `MW` are converted to watts, so meters with different power units can share one chart.
+
+### Changed
+
+- Nothing changes for existing cards. A card without `chart` renders exactly as before, and no option was removed.
+
 ## [0.1.6] - 2026-11-20
 
 ### Fixed
@@ -80,6 +97,7 @@ First release.
 - Native Home Assistant look: uses `ha-card` and your theme's colors and fonts.
 - History comes from one `history/stream` subscription per card.
 
+[0.2.0]: https://github.com/uded/constant-powermeter-card/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/uded/constant-powermeter-card/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/uded/constant-powermeter-card/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/uded/constant-powermeter-card/compare/v0.1.3...v0.1.4

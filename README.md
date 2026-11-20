@@ -10,6 +10,7 @@ Features:
 - Sparkline and bar, chosen per panel or per meter. The sparkline is colored by level along the line.
 - Level colors are set once per panel and shared by every meter.
 - Two-sided meters for values that go negative (grid, solar, battery).
+- Combined charts above the rows: stacked areas, lines, a donut, or a stacked chart and a donut together. They show how the load splits across your meters, with an optional "Untracked" remainder.
 - Click a meter to open its more-info dialog, or navigate, or open a URL.
 - A visual editor for everything, including the thresholds of each meter. YAML is optional.
 - One history subscription per card, not one per meter.
@@ -48,8 +49,12 @@ colors: # shared by every meter in the panel
   warning: var(--warning-color)
   critical: var(--error-color)
 blend: true # interpolate between levels; false = step
+chart: [stacked, donut] # stacked | lines | donut, or a list; default: no chart
+rows: true # false hides the meter rows (needs a chart)
+total: sensor.house_load # optional whole-house load, enables "Untracked"
 meters:
   - entity: sensor.kitchen_power
+    color: '#4e79a7' # optional chart color, default: next palette color
     name: Kitchen # default: friendly_name
     unit: W # default: unit_of_measurement, else none
     precision: 0 # default: entity display precision, else 0
@@ -88,6 +93,9 @@ Panel options:
 | `colors.warning`  | `var(--warning-color)` |                                                                   |
 | `colors.critical` | `var(--error-color)`   |                                                                   |
 | `blend`           | `true`                 | Blend between level colors. `false` switches colors in steps.     |
+| `chart`           | none                   | `stacked`, `lines` or `donut`, or a list. See "Combined charts".  |
+| `rows`            | `true`                 | `false` hides the meter rows and shows a legend. Needs a chart.   |
+| `total`           | none                   | Entity id of the whole-house load. Enables "Untracked".           |
 | `meters`          | required               | At least one entry. Each is an entity id or an object.            |
 
 Meter options:
@@ -96,7 +104,7 @@ Meter options:
 | ------------ | -------------------------------- | ------------------------------------------------------- |
 | `entity`     | required                         | Entity id.                                              |
 | `name`       | `friendly_name`                  | Row label. Long names are cut with an ellipsis.         |
-| `unit`       | `unit_of_measurement`, else none | Display label only. There is no W/kW conversion.        |
+| `unit`       | `unit_of_measurement`, else none | Display label only. Rows do not convert W, kW or MW.    |
 | `precision`  | entity display precision, else 0 | Decimals shown.                                         |
 | `min`        | `0`                              | Bottom of the scale. Below 0 makes the meter two-sided. |
 | `max`        | `5000`                           | Top of the scale.                                       |
@@ -105,6 +113,7 @@ Meter options:
 | `critical`   | `max`                            | From here the critical color is used.                   |
 | `display`    | panel `display`                  | Override the panel default for this meter.              |
 | `tap_action` | `more-info`                      | What a click does. See below.                           |
+| `color`      | next palette color               | Chart color for this meter. Any CSS color.              |
 
 Notes:
 
@@ -141,6 +150,65 @@ On a two-sided meter:
 - Each sparkline bucket plots the sample with the largest absolute value, so a short export spike is as visible as an import spike.
 - Threshold defaults are derived from `max(|min|, max)` instead of the range.
 
+### Combined charts
+
+Add `chart` to see how the load splits across your meters, above the rows. Cards without `chart` look and behave exactly as before.
+
+```yaml
+type: custom:constant-powermeter-card
+title: Where the power goes
+chart: [stacked, donut]
+total: sensor.house_load # whole-house load, not grid import
+hours: 6
+meters:
+  - entity: sensor.kitchen_power
+    color: '#4e79a7'
+  - entity: sensor.ev_charger_power
+  - entity: sensor.heat_pump_power
+  - entity: sensor.grid_power
+    min: -3000 # two-sided meters work in a stack too
+    max: 7000
+```
+
+Chart types:
+
+| Value     | What it shows                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------ |
+| `stacked` | Stacked areas over time, one layer per meter, in config order. Negative values stack below zero. |
+| `lines`   | One line per meter over time on a shared scale.                                                  |
+| `donut`   | The current split, from live values. It needs no history.                                        |
+
+`chart` takes one value or a list. Use `[stacked, donut]` for both: the donut sits to the right of the time chart, and moves below it when the card is narrower than about 360 px. Only one time chart can be shown. If you list both `stacked` and `lines`, the first one wins and the editor shows a warning. Unknown values are ignored.
+
+How the charts are built:
+
+- The time charts use the card's `hours`, with the same history subscription as the sparklines. No extra requests.
+- `stacked` plots the average per time step, so the layers add up to the real average load. `lines` plots the peak per step, like the sparklines, so each line keeps its short spikes.
+- The donut uses live values. Meters that read 0, go negative, are unavailable or are not a number are left out. If nothing is left, it shows an empty ring and `—`. The center shows the total, or the sum of the slices when there is no `total`.
+- Layers and slices keep the order of `meters`, so they do not reshuffle when values change.
+
+#### Rows, legend and shares
+
+With a chart on, each row gets a small color square before the name and a share after the value, for example `1,240 W · 13%`. The share is the meter's live value divided by `total` when it is set, otherwise by the sum of the positive meters. Negative and unavailable meters show no share, and no meter does when the denominator is zero.
+
+Set `rows: false` to show only the chart. A compact legend (a color square and the name per meter, plus "Untracked" when `total` is set) then appears under the chart. `rows: false` without any chart is ignored, because the card must show something.
+
+#### Total and Untracked
+
+Set `total` to an entity that reports your whole-house load. The difference between the total and the sum of your meters is shown as an **Untracked** layer, line or slice, in grey and always last. It never goes below zero.
+
+Use a whole-house **load** sensor for `total`, not grid import. When you have solar or a battery, grid import is smaller than what the house actually uses, so Untracked would be wrong. Negative meters (export, discharge) are ignored for Untracked and for shares: Untracked is `total` minus the sum of the positive meters.
+
+`total` does not add a row. List it under `meters` as well if you want one. Without `chart` it has no effect. If the total is unavailable, the donut drops the Untracked slice and shows the sum of the other slices until it reports again.
+
+#### Colors
+
+Without `color`, each meter takes the next color from Home Assistant's own graph colors (`--graph-color-1` and up), so the chart matches the history graphs. If your theme does not define them, a built-in set of ten colors is used. A meter keeps its color by its position in `meters`. Set `color` on a meter (any CSS color) to pick your own. Level colors still drive the row's bar and sparkline.
+
+#### Units
+
+For the combined charts, shares and Untracked, `W`, `kW` and `MW` are converted to watts before adding, so a `kW` meter and a `W` meter can share a chart. Any other unit is used as reported. If the meters use units that cannot be converted to each other, the editor warns that the chart may be misleading. The rows keep showing each meter's own unit. The label at the top left of the chart is the top of the scale, in the first meter's unit.
+
 ### Click on a meter
 
 Clicking a meter row opens the more-info dialog for its entity (history, attributes, settings), the same dialog the built-in entity cards open. Set `tap_action` on a meter to change that:
@@ -169,7 +237,8 @@ Rows are keyboard accessible: they have `role="button"` and `tabindex="0"`, and 
 Everything above can be set in the editor, with no YAML needed:
 
 - **Panel:** title, display (sparkline and bar), window in hours, sparkline scale, the three level colors, and the blend toggle.
-- **Meters:** one expandable section per meter, with entity, name, unit, precision, min, max, the three thresholds, display override and a tap action (More info, Navigate, URL, None). Navigate and URL show a path field.
+- **Charts:** a **Chart** multi-select (Stacked, Lines, Donut), a **Show rows** toggle, and an optional **Total meter** entity picker. The editor warns when both Stacked and Lines are selected, or when the meters use units that cannot be converted to each other.
+- **Meters:** one expandable section per meter, with entity, name, unit, precision, min, max, the three thresholds, display override, a tap action (More info, Navigate, URL, None) and a chart **Color** with a swatch (the helper text shows the default palette color). Navigate and URL show a path field.
 - **Threshold preview strip:** a thin bar from `min` to `max` (from 0 to `max(|min|, max)` on a two-sided meter, since its thresholds apply to the absolute value) painted with the three level bands in the panel colors. It updates as you type, so a wrong value is visible before saving.
 - **Validation:** thresholds that break `normal <= warning <= critical`, or a negative threshold on a two-sided meter, are marked with a short message.
 - **Reordering:** move meters with the up and down buttons, delete with the bin, add with **Add meter**.
@@ -186,7 +255,7 @@ task build      # build dist/constant-powermeter-card.js
 task dev        # watch build and serve the dev harness at http://localhost:5173/dev/index.html
 ```
 
-The dev harness in `dev/index.html` runs the built card against a mock `hass` and a mock `connection`. It replays an hour of fake history, pushes a new value every 5 seconds, and has a light and dark toggle. It needs no Home Assistant instance.
+The dev harness in `dev/index.html` runs the built card against a mock `hass` and a mock `connection`. It replays an hour of fake history, pushes a new value every 5 seconds, and has a light and dark toggle. It also has a combined-chart card (stacked areas and a donut, with a total above the sum of the meters and a two-sided meter in the stack) and a 300 px wide copy of it to check how the donut wraps. It needs no Home Assistant instance.
 
 `dist/constant-powermeter-card.js` is committed, because HACS installs it straight from the repository. CI fails if the committed bundle is out of date, so run `task build` and commit `dist/` with your change.
 

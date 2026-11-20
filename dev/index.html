@@ -156,6 +156,23 @@
         },
       };
 
+      // Whole-house load for the combined charts. It sits above the sum of the positive
+      // meters, so the Untracked layer and slice are visible.
+      sensors['sensor.house_total'] = {
+        name: 'House total',
+        unit: 'W',
+        value: (t, now) => {
+          const positive = (id) => {
+            const n = Number(sensors[id].value(t, now));
+            return Number.isFinite(n) && n > 0 ? n : 0;
+          };
+          const tracked = Object.keys(sensors)
+            .filter((id) => id !== 'sensor.house_total')
+            .reduce((sum, id) => sum + positive(id), 0);
+          return Math.round(tracked + 450 + 150 * Math.sin(t / 41));
+        },
+      };
+
       const nowSec = () => Date.now() / 1000;
       const iso = (t) => new Date(t * 1000).toISOString();
 
@@ -239,6 +256,13 @@
         for (const c of cards) c.hass = next;
       }
 
+      const combinedMeters = [
+        { entity: 'sensor.grid_power', name: 'Grid (two-sided)', min: -3000, max: 7000 },
+        { entity: 'sensor.office_power', name: 'Office (unavailable)', max: 3500 },
+        { entity: 'sensor.fridge_power', name: 'Fridge (steady)', max: 500, color: '#b07aa1' },
+        { entity: 'sensor.kitchen_power', name: 'Kitchen (noisy)', max: 3500 },
+      ];
+
       const configs = [
         {
           type: 'custom:constant-powermeter-card',
@@ -275,14 +299,39 @@
           blend: false,
           meters: ['sensor.kitchen_power', { entity: 'sensor.fridge_power', max: 500 }],
         },
+        {
+          type: 'custom:constant-powermeter-card',
+          title: 'Combined charts',
+          chart: ['stacked', 'donut'],
+          total: 'sensor.house_total',
+          hours: 1,
+          meters: combinedMeters,
+        },
+        {
+          // The same card in a 300 px column: the donut wraps below the time chart.
+          width: 300,
+          type: 'custom:constant-powermeter-card',
+          title: 'Combined charts, 300 px',
+          chart: ['stacked', 'donut'],
+          total: 'sensor.house_total',
+          hours: 1,
+          meters: combinedMeters,
+        },
       ];
 
       const grid = document.getElementById('grid');
-      for (const cfg of configs) {
+      for (const { width, ...cfg } of configs) {
         const card = document.createElement('constant-powermeter-card');
         card.setConfig(cfg);
-        grid.append(card);
         cards.push(card);
+        if (width) {
+          const slot = document.createElement('div');
+          slot.style.width = `${width}px`;
+          slot.append(card);
+          grid.append(slot);
+        } else {
+          grid.append(card);
+        }
       }
       document.addEventListener('hass-more-info', (ev) => {
         log(`hass-more-info: ${ev.detail.entityId}`);
