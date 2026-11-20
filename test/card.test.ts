@@ -560,6 +560,20 @@ describe('combined charts', () => {
     expect(el.shadowRoot!.querySelector('.chart .label.bottom')!.textContent!.trim()).toBe('1 h');
   });
 
+  it('shows no scale label when no series has any reading', async () => {
+    for (const chart of ['stacked', 'lines']) {
+      const el = await mount(
+        { chart, total: 'sensor.t', meters: ['sensor.a'] },
+        makeHass({
+          'sensor.a': entity('sensor.a', 'unavailable'),
+          'sensor.t': entity('sensor.t', 'unknown'),
+        }),
+      );
+      expect(el.shadowRoot!.querySelector('.chart .label.top')).toBeNull();
+      expect(el.shadowRoot!.querySelector('.chart .label.bottom')).not.toBeNull();
+    }
+  });
+
   it('labels a sub-hour window in minutes', async () => {
     const el = await mount(
       { chart: 'stacked', hours: 0.5, meters: ['sensor.a'] },

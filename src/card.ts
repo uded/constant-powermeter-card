@@ -520,10 +520,20 @@ export class ConstantPowermeterCard extends LitElement {
       range = linesRange(all);
       drawing = renderLines(all, range);
     }
+    // With no reading at all the range is a placeholder, so it gets no scale label.
+    const hasData = [...series.map((s) => s.buckets), totalBuckets ?? []].some((b) =>
+      b.some((v) => v !== null),
+    );
     return html`
       <div class="time ${kind}">
         ${drawing}
-        <span class="label top">${this.formatWithUnit(range.hi, this.chartUnit(cfg))}</span>
+        ${
+          hasData
+            ? html`<span class="label top"
+                >${this.formatWithUnit(range.hi, this.chartUnit(cfg))}</span
+              >`
+            : nothing
+        }
         <span class="label bottom">${windowLabel(cfg.hours)}</span>
       </div>
     `;
