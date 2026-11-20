@@ -1,8 +1,13 @@
 import { ConstantPowermeterCard } from './card';
+import { ConstantPowermeterCardEditor } from './editor';
 
 const TAG = 'constant-powermeter-card';
+const EDITOR_TAG = `${TAG}-editor`;
 
 if (!customElements.get(TAG)) customElements.define(TAG, ConstantPowermeterCard);
+if (!customElements.get(EDITOR_TAG)) {
+  customElements.define(EDITOR_TAG, ConstantPowermeterCardEditor);
+}
 
 interface CustomCardEntry {
   type: string;
