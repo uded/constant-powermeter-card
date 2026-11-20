@@ -305,6 +305,8 @@ describe('StreamHistorySource', () => {
             resolveSub = r;
           }),
       ),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
     };
     const src = new StreamHistorySource(
       conn,
@@ -418,5 +420,161 @@ describe('StreamHistorySource', () => {
     expect(onChange).toHaveBeenCalledTimes(2);
     expect(src.store.size).toBe(0);
     src.close();
+  });
+
+  describe('reconnect', () => {
+    it('subscribes with resubscribe: false so the library does not replay the old window', async () => {
+      const conn = mockConnection();
+      const src = new StreamHistorySource(
+        conn,
+        () => {},
+        () => 3_600_000,
+      );
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(conn.calls[0].options).toEqual({ resubscribe: false });
+      src.close();
+    });
+
+    it('subscribes again with a fresh start_time on ready and clears the store', async () => {
+      const conn = mockConnection();
+      let now = 3_600_000;
+      const onChange = vi.fn();
+      const src = new StreamHistorySource(conn, onChange, () => now);
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      conn.push({ states: { 'sensor.a': [{ s: '1', lu: 10 }] } });
+      expect(src.store.size).toBe(1);
+
+      now = 3 * 86_400_000; // the dashboard stayed open for days
+      conn.fireReady();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(conn.calls).toHaveLength(2);
+      expect(conn.calls[1].msg.start_time).toBe(new Date(now - 3_600_000).toISOString());
+      expect(conn.calls[1].options).toEqual({ resubscribe: false });
+      expect(src.store.size).toBe(0);
+      expect(onChange).toHaveBeenCalledTimes(2);
+      src.close();
+    });
+
+    it('does not reuse or unsubscribe the subscription that died with the old socket', async () => {
+      const conn = mockConnection();
+      const src = new StreamHistorySource(
+        conn,
+        () => {},
+        () => 3_600_000,
+      );
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      conn.fireReady();
+      await vi.advanceTimersByTimeAsync(0);
+      // Its id may belong to a new subscription on the new socket, so no unsubscribe is sent.
+      expect(conn.calls[0].unsub).not.toHaveBeenCalled();
+      // A late message on the old callback is ignored.
+      conn.push({ states: { 'sensor.a': [{ s: '1', lu: 10 }] } }, 0);
+      expect(src.store.size).toBe(0);
+      conn.push({ states: { 'sensor.a': [{ s: '2', lu: 20 }] } }, 1);
+      expect(src.store.get('sensor.a')).toEqual([{ t: 20000, v: 2 }]);
+      src.close();
+      expect(conn.calls[0].unsub).not.toHaveBeenCalled();
+      expect(conn.calls[1].unsub).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps exactly one live subscription across several reconnects', async () => {
+      const conn = mockConnection();
+      const src = new StreamHistorySource(
+        conn,
+        () => {},
+        () => 3_600_000,
+      );
+      src.update(['sensor.a', 'sensor.b'], 2);
+      await vi.advanceTimersByTimeAsync(1000);
+      for (let i = 0; i < 3; i++) {
+        conn.fireReady();
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      expect(conn.calls).toHaveLength(4);
+      expect(conn.calls.every((c) => c.msg.entity_ids?.toString() === 'sensor.a,sensor.b')).toBe(
+        true,
+      );
+      // Only the newest subscription is held; close() unsubscribes it alone.
+      src.close();
+      expect(conn.calls.map((c) => c.unsub.mock.calls.length)).toEqual([0, 0, 0, 1]);
+    });
+
+    it('removes the ready listener on close and ignores ready afterwards', async () => {
+      const conn = mockConnection();
+      const src = new StreamHistorySource(
+        conn,
+        () => {},
+        () => 3_600_000,
+      );
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(conn.readyListeners.size).toBe(1);
+      src.update(['sensor.b'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(conn.readyListeners.size).toBe(1);
+      src.close();
+      expect(conn.readyListeners.size).toBe(0);
+      conn.fireReady();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(conn.calls).toHaveLength(2);
+    });
+
+    it('retries a failed subscription on ready', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const conn = mockConnection();
+      conn.failNext(new Error('boom'));
+      const src = new StreamHistorySource(
+        conn,
+        () => {},
+        () => 3_600_000,
+      );
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(conn.calls[0].rejected).toBe(true);
+      conn.fireReady();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(conn.calls).toHaveLength(2);
+      expect(conn.calls[1].rejected).toBeUndefined();
+      src.close();
+      expect(conn.calls[1].unsub).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets a pending debounce do the fresh subscribe, even if it is reverted', async () => {
+      const conn = mockConnection();
+      const src = new StreamHistorySource(
+        conn,
+        () => {},
+        () => 3_600_000,
+      );
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      src.update(['sensor.b'], 1);
+      conn.fireReady();
+      // Back to the original key while the debounce is pending: it must still resubscribe.
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(conn.calls).toHaveLength(2);
+      expect(conn.calls[1].msg.entity_ids).toEqual(['sensor.a']);
+      expect(conn.calls[0].unsub).not.toHaveBeenCalled();
+      src.close();
+    });
+
+    it('does nothing on ready when no entities are tracked', async () => {
+      const conn = mockConnection();
+      const src = new StreamHistorySource(
+        conn,
+        () => {},
+        () => 3_600_000,
+      );
+      src.update([], 1);
+      await vi.advanceTimersByTimeAsync(1000);
+      conn.fireReady();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(conn.calls).toHaveLength(0);
+      src.close();
+    });
   });
 });

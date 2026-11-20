@@ -199,6 +199,9 @@
             console.info('[harness] history/stream unsubscribed', ids);
           });
         },
+        // The harness never reconnects, so 'ready' never fires.
+        addEventListener() {},
+        removeEventListener() {},
       };
 
       let dark = false;

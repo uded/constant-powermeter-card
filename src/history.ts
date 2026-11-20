@@ -79,6 +79,26 @@ export class StreamHistorySource implements HistorySource {
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   private trimTimer: ReturnType<typeof setInterval> | undefined;
   private pendingKey: string | undefined;
+  private activeIds: string[] = [];
+  private listening = false;
+
+  /**
+   * Runs when the connection comes back after a drop. The subscription is made with
+   * resubscribe: false, so the library does not replay a start_time frozen at the first
+   * subscribe; subscribe again here with a fresh window. This also retries a failed one.
+   */
+  private readonly onReady = (): void => {
+    // The old subscription died with the socket and its id may be reused on the new one,
+    // so drop it without sending an unsubscribe.
+    this.unsub = undefined;
+    if (this.debounceTimer !== undefined) {
+      // A pending debounce subscribes fresh; make sure it is not cancelled as a no-op.
+      this.activeKey = undefined;
+      return;
+    }
+    if (this.activeKey === undefined || this.activeIds.length === 0) return;
+    this.subscribe(this.activeIds, this.hours, this.activeKey);
+  };
 
   constructor(
     private readonly conn: HaConnection,
@@ -104,6 +124,9 @@ export class StreamHistorySource implements HistorySource {
     this.generation++;
     this.teardown();
     this.activeKey = undefined;
+    this.activeIds = [];
+    if (this.listening) this.conn.removeEventListener('ready', this.onReady);
+    this.listening = false;
   }
 
   private clearDebounce(): void {
@@ -127,8 +150,13 @@ export class StreamHistorySource implements HistorySource {
     if (hadData) this.onChange();
     const gen = ++this.generation;
     this.activeKey = key;
+    this.activeIds = ids;
     this.hours = hours;
     if (ids.length === 0) return;
+    if (!this.listening) {
+      this.conn.addEventListener('ready', this.onReady);
+      this.listening = true;
+    }
 
     const startMs = this.now() - hours * HOUR_MS;
     this.trimTimer = setInterval(
@@ -151,6 +179,7 @@ export class StreamHistorySource implements HistorySource {
           no_attributes: true,
           significant_changes_only: false,
         },
+        { resubscribe: false },
       )
       .then((unsub) => {
         if (gen === this.generation) this.unsub = unsub;
