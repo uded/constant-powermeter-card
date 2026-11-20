@@ -16,15 +16,14 @@ const POWER_FACTORS: Readonly<Record<string, number>> = { W: 1, kW: 1000, MW: 1_
 
 /** Converts a power value to watts; other units pass through unchanged. */
 export function toWatts(value: number, unit: string | undefined): number {
-  const factor = unit === undefined ? undefined : POWER_FACTORS[unit];
-  return factor === undefined ? value : value * factor;
+  if (unit === undefined || !Object.hasOwn(POWER_FACTORS, unit)) return value;
+  return value * POWER_FACTORS[unit];
 }
 
-/** True when all units are power units (W, kW, MW) or all are identical and defined. */
+/** True when all units are power units (W, kW, MW) or all are identical (including all unitless). */
 export function unitsCompatible(units: (string | undefined)[]): boolean {
-  if (units.length === 0) return true;
-  if (units.every((u) => u !== undefined && u in POWER_FACTORS)) return true;
-  return units[0] !== undefined && units.every((u) => u === units[0]);
+  if (units.every((u) => u !== undefined && Object.hasOwn(POWER_FACTORS, u))) return true;
+  return units.every((u) => u === units[0]);
 }
 
 /** Returns the explicit color, or the HA graph color for the index with a fallback. */

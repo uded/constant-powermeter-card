@@ -14,6 +14,10 @@ describe('series', () => {
     expect(unitsCompatible(['A', 'A'])).toBe(true);
     expect(unitsCompatible(['W', 'A'])).toBe(false);
     expect(unitsCompatible([undefined, 'W'])).toBe(false);
+    expect(unitsCompatible([undefined, undefined])).toBe(true);
+    expect(unitsCompatible([])).toBe(true);
+    expect(toWatts(5, 'constructor')).toBe(5);
+    expect(unitsCompatible(['constructor', 'W'])).toBe(false);
   });
   it('picks palette colors by index unless one is set', () => {
     expect(seriesColor(0)).toBe(`var(--graph-color-1, ${FALLBACK_SERIES[0]})`);
