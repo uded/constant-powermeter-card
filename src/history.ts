@@ -87,7 +87,7 @@ export class StreamHistorySource implements HistorySource {
   ) {}
 
   update(entityIds: string[], hours: number): void {
-    const ids = [...entityIds].sort();
+    const ids = [...new Set(entityIds)].sort();
     const key = `${ids.join(',')}|${hours}`;
     if (key === (this.debounceTimer ? this.pendingKey : this.activeKey)) return;
     this.clearDebounce();
@@ -122,7 +122,9 @@ export class StreamHistorySource implements HistorySource {
   }
 
   private subscribe(ids: string[], hours: number, key: string): void {
+    const hadData = this.store.size > 0;
     this.teardown();
+    if (hadData) this.onChange();
     const gen = ++this.generation;
     this.activeKey = key;
     this.hours = hours;

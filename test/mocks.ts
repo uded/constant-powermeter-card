@@ -5,6 +5,8 @@ export interface MockCall {
   msg: Record<string, unknown>;
   cb: (msg: unknown) => void;
   unsub: Mock<() => Promise<void>>;
+  /** True when this attempt was made to fail via failNext. */
+  rejected?: boolean;
 }
 
 export interface MockConnection extends HaConnection {
@@ -22,12 +24,13 @@ export function mockConnection(): MockConnection {
   return {
     calls,
     subscribeMessage<T>(cb: (msg: T) => void, msg: Record<string, unknown>) {
+      const unsub = vi.fn(() => Promise.resolve());
       if (nextError) {
         const err = nextError;
         nextError = undefined;
+        calls.push({ msg, cb: cb as (m: unknown) => void, unsub, rejected: true });
         return Promise.reject(err);
       }
-      const unsub = vi.fn(() => Promise.resolve());
       calls.push({ msg, cb: cb as (m: unknown) => void, unsub });
       return Promise.resolve(unsub);
     },

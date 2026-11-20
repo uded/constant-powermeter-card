@@ -344,7 +344,7 @@ describe('StreamHistorySource', () => {
     src.close();
   });
 
-  it('logs a failed subscription once and keeps working', async () => {
+  it('logs a failed subscription once, not on every update', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const conn = mockConnection();
     conn.failNext(new Error('boom'));
@@ -355,11 +355,68 @@ describe('StreamHistorySource', () => {
     );
     src.update(['sensor.a'], 1);
     await vi.advanceTimersByTimeAsync(1000);
+    for (let i = 0; i < 3; i++) {
+      src.update(['sensor.a'], 1);
+      await vi.advanceTimersByTimeAsync(2000);
+    }
+    expect(conn.calls).toHaveLength(1);
+    expect(conn.calls[0].rejected).toBe(true);
     expect(err).toHaveBeenCalledTimes(1);
+    // A changed key subscribes again and works.
     src.update(['sensor.a', 'sensor.b'], 1);
     await vi.advanceTimersByTimeAsync(1000);
-    expect(conn.calls).toHaveLength(1);
+    expect(conn.calls).toHaveLength(2);
     expect(err).toHaveBeenCalledTimes(1);
+    src.close();
+  });
+
+  it('restarts the debounce window on every update', async () => {
+    const conn = mockConnection();
+    const src = new StreamHistorySource(
+      conn,
+      () => {},
+      () => 3_600_000,
+    );
+    src.update(['sensor.a'], 1);
+    await vi.advanceTimersByTimeAsync(500);
+    src.update(['sensor.b'], 1);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(conn.calls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(conn.calls).toHaveLength(1);
+    expect(conn.calls[0].msg.entity_ids).toEqual(['sensor.b']);
+    src.close();
+  });
+
+  it('deduplicates entity ids in the key and the message', async () => {
+    const conn = mockConnection();
+    const src = new StreamHistorySource(
+      conn,
+      () => {},
+      () => 3_600_000,
+    );
+    src.update(['sensor.a', 'sensor.a', 'sensor.b'], 1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.calls[0].msg.entity_ids).toEqual(['sensor.a', 'sensor.b']);
+    src.update(['sensor.b', 'sensor.a'], 1);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(conn.calls).toHaveLength(1);
+    src.close();
+  });
+
+  it('notifies when a key change clears a non-empty store', async () => {
+    const conn = mockConnection();
+    const onChange = vi.fn();
+    const src = new StreamHistorySource(conn, onChange, () => 3_600_000);
+    src.update(['sensor.a'], 1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).not.toHaveBeenCalled();
+    conn.push({ states: { 'sensor.a': [{ s: '1', lu: 10 }] } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    src.update(['sensor.b'], 1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(src.store.size).toBe(0);
     src.close();
   });
 });
