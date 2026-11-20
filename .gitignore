@@ -1,0 +1,8 @@
+node_modules/
+coverage/
+docs/superpowers/
+.superpowers/
+CLAUDE.md
+.claude/
+.serena/
+*.profraw
