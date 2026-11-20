@@ -2,6 +2,15 @@
 
 All notable changes to this card. Each release on GitHub uses its section from this file as release notes.
 
+## [0.2.1] - 2026-11-20
+
+### Changed
+
+- The combined charts are always in watts. A meter without a unit is read as watts, and `w` and `kw` are accepted in any letter case, so the chart no longer depends on how a sensor spells its unit.
+- A meter in a unit that is not power, for example a battery's `kWh`, a state of charge in `%`, a current in `A` or apparent power in `VA`, now stays a normal row with its sparkline, bar and value, but is left out of the stacked chart, lines, donut and shares. Before, its raw number was added to the watts, which gave a wrong total and wrong shares. Its row has no color swatch or share, so you can tell it is not in the chart.
+- A `total` that does not report power is ignored, so no Untracked is drawn from it.
+- The visual editor no longer shows "Meters use different units; the combined chart may be misleading". It lists the meters left out of the chart instead, for example `Not in chart: Battery (kWh), SoC (%)`.
+
 ## [0.2.0] - 2026-11-20
 
 Existing cards without `chart` look and behave exactly as before.
@@ -96,6 +105,7 @@ First release.
 - Native Home Assistant look: uses `ha-card` and your theme's colors and fonts.
 - History comes from one `history/stream` subscription per card.
 
+[0.2.1]: https://github.com/uded/constant-powermeter-card/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/uded/constant-powermeter-card/compare/v0.1.6...v0.2.0
 [0.1.6]: https://github.com/uded/constant-powermeter-card/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/uded/constant-powermeter-card/compare/v0.1.4...v0.1.5

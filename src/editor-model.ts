@@ -8,7 +8,7 @@ import {
   type ResolvedMeter,
   type TapAction,
 } from './config';
-import { seriesColor, unitsCompatible } from './series';
+import { isPowerUnit, seriesColor } from './series';
 import type { HomeAssistant } from './types/ha';
 
 /** FormData is the flat object an `ha-form` edits. */
@@ -50,7 +50,7 @@ export const MESSAGES = {
   range: 'Max must be above Min',
   twoSided: 'Two-sided: thresholds apply to |value|',
   chartConflict: 'Stacked and Lines cannot be shown together; only the first one listed is shown',
-  units: 'Meters use different units; the combined chart may be misleading',
+  notInChart: 'Not in chart',
 };
 
 export const LABELS: Record<string, string> = {
@@ -599,9 +599,9 @@ function unitOf(
 }
 
 /**
- * panelWarnings lists the editor warnings for the combined charts: Stacked and Lines both
- * chosen, and meters (plus the total) whose units cannot be converted to one another. Entities
- * HA does not know yet are left out of the unit check.
+ * panelWarnings lists the editor notes for the combined charts: Stacked and Lines both
+ * chosen, and meters (plus the total) left out of the chart because they do not report power.
+ * Entities HA does not know yet are skipped.
  */
 export function panelWarnings(c: CardConfig, hass?: HomeAssistant): string[] {
   if (c.chart === undefined) return [];
@@ -609,9 +609,15 @@ export function panelWarnings(c: CardConfig, hass?: HomeAssistant): string[] {
   const { warnings } = normalizeConfig({ type: '', chart: c.chart, meters: ['sensor.x'] });
   if (warnings.includes('chart_conflict')) out.push(MESSAGES.chartConflict);
   const entries = c.meters.map(toMeterObject).filter((m) => typeof m.entity === 'string');
-  const units = entries.map((m) => unitOf(m.entity, m.unit, hass));
-  if (c.total) units.push(unitOf(c.total, undefined, hass));
-  const known = units.filter((u): u is string | undefined => u !== null);
-  if (!unitsCompatible(known)) out.push(MESSAGES.units);
+  const left: string[] = [];
+  const check = (entity: string, unit: string | undefined, name: string | undefined, tag = '') => {
+    const u = unitOf(entity, unit, hass);
+    if (u === null || isPowerUnit(u)) return;
+    const shown = name ?? hass?.states[entity]?.attributes.friendly_name ?? entity;
+    left.push(`${shown} (${u}${tag})`);
+  };
+  for (const m of entries) check(m.entity, m.unit, m.name);
+  if (c.total) check(c.total, undefined, undefined, ', total');
+  if (left.length > 0) out.push(`${MESSAGES.notInChart}: ${left.join(', ')}`);
   return out;
 }

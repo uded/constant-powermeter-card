@@ -46,6 +46,8 @@ const MAX_PRECISION = 10;
 const CARD_TYPE = 'custom:constant-powermeter-card';
 /** The sparkline window is re-rendered at least this rarely, so a steady sensor still scrolls. */
 const MIN_TICK_MS = 15_000;
+/** The combined charts are always drawn in watts; non-power meters are left out of them. */
+const CHART_UNIT = { unit: 'W', precision: 0 };
 /** How long the shown number takes to move from the old real value to the new one. */
 export const TWEEN_MS = 500;
 
@@ -260,9 +262,13 @@ export class ConstantPowermeterCard extends LitElement {
     this.history.update(ids, this.config.hours);
   }
 
-  /** chartTotal is the total entity, which only counts while a chart is shown. */
+  /**
+   * chartTotal is the total entity, which only counts while a chart is shown and only when
+   * it reports power: an energy or percent total cannot be compared with watts.
+   */
   private chartTotal(cfg: ResolvedCard): string | undefined {
-    return hasChart(cfg) ? cfg.total : undefined;
+    if (!hasChart(cfg) || cfg.total === undefined) return undefined;
+    return isPowerUnit(this.unitOf(cfg.total)) ? cfg.total : undefined;
   }
 
   protected shouldUpdate(changed: PropertyValues): boolean {
@@ -334,10 +340,12 @@ export class ConstantPowermeterCard extends LitElement {
   private renderCharted(cfg: ResolvedCard, palette: Palette, now: number): TemplateResult {
     const total = this.chartTotal(cfg);
     const totalW = total === undefined ? null : this.liveWatts(total, this.unitOf(total));
-    // A meter that is also the total would count the total twice, so it gets no share.
+    // Only chart meters get a share and a swatch: not the total (it would count twice),
+    // and not meters in other units such as kWh or %.
+    const inChart = new Set(this.chartMeters(cfg).map(({ i }) => i));
     const share = shares(
-      cfg.meters.map((m) =>
-        m.entity === total ? null : this.liveWatts(m.entity, this.unitOf(m.entity, m)),
+      cfg.meters.map((m, i) =>
+        inChart.has(i) ? this.liveWatts(m.entity, this.unitOf(m.entity, m)) : null,
       ),
       totalW,
     );
@@ -354,9 +362,9 @@ export class ConstantPowermeterCard extends LitElement {
                     i,
                     palette,
                     now,
-                    m.entity === total
-                      ? { share: null }
-                      : { color: seriesColor(i, m.color), share: share[i] },
+                    inChart.has(i)
+                      ? { color: seriesColor(i, m.color), share: share[i] }
+                      : { share: null },
                   ),
                 )}
               </div>`
@@ -368,11 +376,14 @@ export class ConstantPowermeterCard extends LitElement {
 
   /**
    * chartMeters are the meters drawn as chart series, with their config index. A meter
-   * that is also the total is left out: it would count the total twice.
+   * that is also the total is left out (it would count the total twice), and so is a
+   * meter that does not report power: it stays a row only.
    */
   private chartMeters(cfg: ResolvedCard): { m: ResolvedMeter; i: number }[] {
-    const total = this.chartTotal(cfg);
-    return cfg.meters.flatMap((m, i) => (m.entity === total ? [] : [{ m, i }]));
+    const total = cfg.total;
+    return cfg.meters.flatMap((m, i) =>
+      m.entity === total || !isPowerUnit(this.unitOf(m.entity, m)) ? [] : [{ m, i }],
+    );
   }
 
   /** unitOf is the meter's configured unit, else the entity's reported one. */
@@ -388,22 +399,6 @@ export class ConstantPowermeterCard extends LitElement {
   private liveWatts(entity: string, unit: string | undefined): number | null {
     const v = parseState(this.hass!.states[entity]?.state);
     return v === null ? null : toWatts(v, unit);
-  }
-
-  /**
-   * chartUnit is the unit the combined charts are drawn in: W when the first meter
-   * reports a power unit (everything is converted to W), else that meter's own unit.
-   */
-  private chartUnit(cfg: ResolvedCard): { unit: string; precision: number } {
-    const first = cfg.meters[0];
-    const unit = this.unitOf(first.entity, first);
-    if (isPowerUnit(unit)) return { unit: 'W', precision: 0 };
-    return {
-      unit: unit ?? '',
-      precision: clampPrecision(
-        first.precision ?? this.hass!.entities?.[first.entity]?.display_precision,
-      ),
-    };
   }
 
   private formatWithUnit(value: number, u: { unit: string; precision: number }): string {
@@ -530,9 +525,7 @@ export class ConstantPowermeterCard extends LitElement {
         ${drawing}
         ${
           hasData
-            ? html`<span class="label top"
-                >${this.formatWithUnit(range.hi, this.chartUnit(cfg))}</span
-              >`
+            ? html`<span class="label top">${this.formatWithUnit(range.hi, CHART_UNIT)}</span>`
             : nothing
         }
         <span class="label bottom">${windowLabel(cfg.hours)}</span>
@@ -560,7 +553,7 @@ export class ConstantPowermeterCard extends LitElement {
     }
     const { slices, center } = donutSlices(items, totalW);
     const empty = slices.length === 0 || center === null;
-    const text = empty ? '—' : this.formatWithUnit(center, this.chartUnit(cfg));
+    const text = empty ? '—' : this.formatWithUnit(center, CHART_UNIT);
     const label = `Power split, ${empty ? 'no data' : text}`;
     return html`<div class="donut">${renderDonut(slices, text, label)}</div>`;
   }

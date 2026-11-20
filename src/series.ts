@@ -12,23 +12,30 @@ export const FALLBACK_SERIES: readonly string[] = [
   '#8a8f98',
 ];
 
-const POWER_FACTORS: Readonly<Record<string, number>> = { W: 1, kW: 1000, MW: 1_000_000 };
+// Exact spellings first, so MW (mega) is never read as mW (milli); any case only for w and kw.
+const EXACT_FACTORS: Readonly<Record<string, number>> = { W: 1, kW: 1000, MW: 1_000_000 };
+const LOOSE_FACTORS: Readonly<Record<string, number>> = { w: 1, kw: 1000 };
 
-/** True for the power units toWatts converts (W, kW, MW). */
+/**
+ * wattFactor is the multiplier from a unit to watts, or null for a unit that is not power.
+ * A meter without a unit counts as watts: this is a power card.
+ */
+export function wattFactor(unit: string | undefined): number | null {
+  const u = unit?.trim() ?? '';
+  if (u === '') return 1;
+  if (Object.hasOwn(EXACT_FACTORS, u)) return EXACT_FACTORS[u];
+  const l = u.toLowerCase();
+  return Object.hasOwn(LOOSE_FACTORS, l) ? LOOSE_FACTORS[l] : null;
+}
+
+/** True for units the combined charts accept: W, kW, MW (w and kw in any case) or none. */
 export function isPowerUnit(unit: string | undefined): boolean {
-  return unit !== undefined && Object.hasOwn(POWER_FACTORS, unit);
+  return wattFactor(unit) !== null;
 }
 
 /** Converts a power value to watts; other units pass through unchanged. */
 export function toWatts(value: number, unit: string | undefined): number {
-  if (unit === undefined || !Object.hasOwn(POWER_FACTORS, unit)) return value;
-  return value * POWER_FACTORS[unit];
-}
-
-/** True when all units are power units (W, kW, MW) or all are identical (including all unitless). */
-export function unitsCompatible(units: (string | undefined)[]): boolean {
-  if (units.every((u) => u !== undefined && Object.hasOwn(POWER_FACTORS, u))) return true;
-  return units.every((u) => u === units[0]);
+  return value * (wattFactor(unit) ?? 1);
 }
 
 /** Returns the explicit color, or the HA graph color for the index with a fallback. */

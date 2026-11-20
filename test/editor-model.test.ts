@@ -379,22 +379,27 @@ describe('panel form', () => {
     expect(usedEntities(c)).toEqual(['sensor.a', 'sensor.b']);
   });
 
-  it('warns on stacked + lines and on incompatible units', () => {
+  it('warns on stacked + lines and lists meters left out of the chart', () => {
     expect(panelWarnings({ type: 'x', chart: ['stacked', 'lines'], meters: ['a'] })).toHaveLength(
       1,
     );
     const hass = {
       states: {
         a: { attributes: { unit_of_measurement: 'W' } },
-        b: { attributes: { unit_of_measurement: 'A' } },
+        b: { attributes: { unit_of_measurement: 'kWh', friendly_name: 'Battery' } },
+        c: { attributes: { unit_of_measurement: '%' } },
         k: { attributes: { unit_of_measurement: 'kW' } },
+        n: { attributes: {} },
       },
     } as never;
-    expect(panelWarnings({ type: 'x', chart: 'donut', meters: ['a', 'b'] }, hass)).toEqual([
-      MESSAGES.units,
-    ]);
-    // W and kW convert; a configured unit overrides the entity's; no chart, no warning.
-    expect(panelWarnings({ type: 'x', chart: 'donut', meters: ['a', 'k'] }, hass)).toEqual([]);
+    expect(
+      panelWarnings(
+        { type: 'x', chart: 'donut', meters: ['a', 'b', { entity: 'c', name: 'SoC' }] },
+        hass,
+      ),
+    ).toEqual([`${MESSAGES.notInChart}: Battery (kWh), SoC (%)`]);
+    // W, kW and no unit are all power; a configured unit overrides the entity's; no chart, no note.
+    expect(panelWarnings({ type: 'x', chart: 'donut', meters: ['a', 'k', 'n'] }, hass)).toEqual([]);
     const overridden: CardConfig = {
       type: 'x',
       chart: 'donut',
@@ -402,9 +407,11 @@ describe('panel form', () => {
     };
     expect(panelWarnings(overridden, hass)).toEqual([]);
     expect(panelWarnings({ type: 'x', meters: ['a', 'b'] }, hass)).toEqual([]);
-    // The total joins the combined chart; an entity HA does not know is skipped.
+    // A total that is not power is named too; an entity HA does not know is skipped.
     const withTotal: CardConfig = { type: 'x', chart: 'stacked', total: 'b', meters: ['a', 'z'] };
-    expect(panelWarnings(withTotal, hass)).toEqual([MESSAGES.units]);
+    expect(panelWarnings(withTotal, hass)).toEqual([
+      `${MESSAGES.notInChart}: Battery (kWh, total)`,
+    ]);
     expect(panelWarnings({ ...withTotal, total: undefined }, hass)).toEqual([]);
     expect(panelWarnings({ type: 'x', chart: ['lines', 'stacked'], meters: [] })).toEqual([
       MESSAGES.chartConflict,

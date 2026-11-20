@@ -207,7 +207,7 @@ Without `color`, each meter takes the next color from Home Assistant's own graph
 
 #### Units
 
-For the combined charts, shares and Untracked, `W`, `kW` and `MW` are converted to watts before adding, so a `kW` meter and a `W` meter can share a chart. Any other unit is used as reported. If the meters use units that cannot be converted to each other, the editor warns that the chart may be misleading. The rows keep showing each meter's own unit. The label at the top left of the chart (the top of the scale) and the number in the donut center are shown in W when the first meter reports `W`, `kW` or `MW`. Otherwise they use the first meter's own unit.
+The combined charts, shares and Untracked are always in watts. `W`, `kW` and `MW` are converted to watts (`w` and `kw` in any letter case as well), and a meter without a unit is read as watts. A meter in any other unit, for example a battery's `kWh` or a state of charge in `%`, stays a normal row with its sparkline, bar and value. It is left out of the chart, the donut and the shares, and its row has no swatch or share. A `total` that does not report power is ignored, so there is no Untracked. The editor lists the meters left out, for example `Not in chart: Battery (kWh), SoC (%)`. The rows keep showing each meter's own unit. The label at the top of the chart scale and the number in the donut center are in W.
 
 ### Click on a meter
 
@@ -237,7 +237,7 @@ Rows are keyboard accessible: they have `role="button"` and `tabindex="0"`, and 
 Everything above can be set in the editor, with no YAML needed:
 
 - **Panel:** title, display (sparkline and bar), window in hours, sparkline scale, the three level colors, and the blend toggle.
-- **Charts:** a **Chart** multi-select (Stacked, Lines, Donut), a **Show rows** toggle, and an optional **Total meter** entity picker. The editor warns when both Stacked and Lines are selected, or when the meters use units that cannot be converted to each other.
+- **Charts:** a **Chart** multi-select (Stacked, Lines, Donut), a **Show rows** toggle, and an optional **Total meter** entity picker. The editor warns when both Stacked and Lines are selected, and lists the meters left out of the chart because they do not report power.
 - **Meters:** one expandable section per meter, with entity, name, unit, precision, min, max, the three thresholds, display override, a tap action (More info, Navigate, URL, None) and a chart **Color** with a swatch (the helper text shows the default palette color). Navigate and URL show a path field.
 - **Threshold preview strip:** a thin bar from `min` to `max` (from 0 to `max(|min|, max)` on a two-sided meter, since its thresholds apply to the absolute value) painted with the three level bands in the panel colors. It updates as you type, so a wrong value is visible before saving.
 - **Validation:** thresholds that break `normal <= warning <= critical`, or a negative threshold on a two-sided meter, are marked with a short message.

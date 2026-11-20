@@ -595,6 +595,40 @@ describe('combined charts', () => {
     expect(el.shadowRoot!.querySelector('.donut .center')!.textContent!.trim()).toBe('2,000 W');
   });
 
+  it('keeps non-power meters as plain rows, out of the chart and the shares', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '600', { unit_of_measurement: 'W' }),
+      'sensor.b': entity('sensor.b', '0.4', { unit_of_measurement: 'kw' }),
+      'sensor.e': entity('sensor.e', '12', { unit_of_measurement: 'kWh' }),
+      'sensor.s': entity('sensor.s', '80', { unit_of_measurement: '%' }),
+    });
+    const el = await mount(
+      { chart: 'donut', meters: ['sensor.a', 'sensor.b', 'sensor.e', 'sensor.s'] },
+      hass,
+    );
+    expect(el.shadowRoot!.querySelectorAll('.donut .slice')).toHaveLength(2);
+    expect(el.shadowRoot!.querySelector('.donut .center')!.textContent!.trim()).toBe('1,000 W');
+    const [a, b, e, s] = rows(el);
+    expect(a.querySelector('.share')!.textContent).toBe('60%');
+    expect(b.querySelector('.share')!.textContent).toBe('40%');
+    for (const row of [e, s]) {
+      expect(row.querySelector('.swatch')).toBeNull();
+      expect(row.querySelector('.share')).toBeNull();
+    }
+    expect(e.querySelector('.value')!.textContent).toContain('12');
+    expect(e.querySelector('.unit')!.textContent).toBe('kWh');
+  });
+
+  it('ignores a total that does not report power', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '500', { unit_of_measurement: 'W' }),
+      'sensor.t': entity('sensor.t', '30', { unit_of_measurement: 'kWh' }),
+    });
+    const el = await mount({ chart: 'stacked', total: 'sensor.t', meters: ['sensor.a'] }, hass);
+    expect(el.shadowRoot!.querySelectorAll('.stacked path.edge')).toHaveLength(1); // no Untracked
+    expect(rows(el)[0].querySelector('.share')!.textContent).toBe('100%');
+  });
+
   it('shows an empty ring and — when no meter has a positive value', async () => {
     const hass = makeHass({
       'sensor.a': entity('sensor.a', '0', { unit_of_measurement: 'W' }),
@@ -686,7 +720,7 @@ describe('combined charts', () => {
     it('is not a donut slice', async () => {
       const el = await mount(config('donut'), hass());
       expect(el.shadowRoot!.querySelectorAll('.donut .slice')).toHaveLength(2); // Kitchen + Untracked
-      expect(el.shadowRoot!.querySelector('.donut .center')!.textContent!.trim()).toBe('1,000');
+      expect(el.shadowRoot!.querySelector('.donut .center')!.textContent!.trim()).toBe('1,000 W');
     });
 
     it('is not in the legend', async () => {
