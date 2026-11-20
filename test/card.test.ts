@@ -629,6 +629,59 @@ describe('combined charts', () => {
     expect(edges[1].getAttribute('style')).toContain('var(--disabled-color');
   });
 
+  describe('a total that is also listed as a meter', () => {
+    const hass = () =>
+      makeHass({
+        'sensor.t': entity('sensor.t', '1000', { friendly_name: 'House' }),
+        'sensor.a': entity('sensor.a', '300', { friendly_name: 'Kitchen' }),
+      });
+    const config = (chart: unknown, extra: Record<string, unknown> = {}) => ({
+      chart,
+      total: 'sensor.t',
+      meters: ['sensor.t', 'sensor.a'],
+      ...extra,
+    });
+
+    it('keeps its row with no swatch and no share, and leaves it out of the shares', async () => {
+      const el = await mount(config('donut'), hass());
+      const [house, kitchen] = rows(el);
+      expect(house.querySelector('.name')!.textContent).toContain('House');
+      expect(house.querySelector('.value')!.textContent).toContain('1,000');
+      expect(house.querySelector('.swatch')).toBeNull();
+      expect(house.querySelector('.share')).toBeNull();
+      expect(kitchen.querySelector('.swatch')).not.toBeNull();
+      expect(kitchen.querySelector('.share')!.textContent).toBe('30%');
+    });
+
+    it('is not stacked on the circuits, and Untracked is the real remainder', async () => {
+      const el = await mount(config('stacked'), hass());
+      const edges = [...el.shadowRoot!.querySelectorAll('.stacked path.edge')];
+      expect(edges).toHaveLength(2); // Kitchen + Untracked
+      expect(edges[1].getAttribute('style')).toContain('var(--disabled-color');
+      // The top of the stack is the total (1000 W, padded 5%), not total + circuits.
+      expect(topLabel(el)).toBe(1050);
+    });
+
+    it('draws no line of its own on a lines chart', async () => {
+      const el = await mount(config('lines'), hass());
+      const lines = [...el.shadowRoot!.querySelectorAll('.lines path.series')];
+      expect(lines).toHaveLength(2); // Kitchen + Untracked
+      expect(topLabel(el)).toBe(735); // max(300, 700) padded 5%
+    });
+
+    it('is not a donut slice', async () => {
+      const el = await mount(config('donut'), hass());
+      expect(el.shadowRoot!.querySelectorAll('.donut .slice')).toHaveLength(2); // Kitchen + Untracked
+      expect(el.shadowRoot!.querySelector('.donut .center')!.textContent!.trim()).toBe('1,000');
+    });
+
+    it('is not in the legend', async () => {
+      const el = await mount(config('donut', { rows: false }), hass());
+      const items = [...el.shadowRoot!.querySelectorAll('.chart .legend .legend-item')];
+      expect(items.map((i) => i.textContent!.trim())).toEqual(['Kitchen', 'Untracked']);
+    });
+  });
+
   it('hides rows and shows a legend with rows: false', async () => {
     const hass = makeHass({
       'sensor.a': entity('sensor.a', '300', { friendly_name: 'Kitchen' }),

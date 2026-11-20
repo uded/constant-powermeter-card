@@ -20,9 +20,12 @@ import { renderSparkline } from './sparkline';
 import { UNTRACKED_COLOR, UNTRACKED_KEY, UNTRACKED_NAME, type Series } from './types/chart';
 import type { HomeAssistant } from './types/ha';
 
-/** RowExtras are the chart-only parts of a row: the series swatch and the share. */
+/**
+ * RowExtras are the chart-only parts of a row: the series swatch and the share. A meter
+ * that is also the total is not a series, so it has neither.
+ */
 interface RowExtras {
-  color: string;
+  color?: string;
   share: number | null;
 }
 
@@ -320,8 +323,11 @@ export class ConstantPowermeterCard extends LitElement {
   private renderCharted(cfg: ResolvedCard, palette: Palette, now: number): TemplateResult {
     const total = this.chartTotal(cfg);
     const totalW = total === undefined ? null : this.liveWatts(total, this.unitOf(total));
+    // A meter that is also the total would count the total twice, so it gets no share.
     const share = shares(
-      cfg.meters.map((m) => this.liveWatts(m.entity, this.unitOf(m.entity, m))),
+      cfg.meters.map((m) =>
+        m.entity === total ? null : this.liveWatts(m.entity, this.unitOf(m.entity, m)),
+      ),
       totalW,
     );
     return html`
@@ -331,16 +337,31 @@ export class ConstantPowermeterCard extends LitElement {
           cfg.rows
             ? html`<div class="rows">
                 ${cfg.meters.map((m, i) =>
-                  this.renderRow(cfg, m, i, palette, now, {
-                    color: seriesColor(i, m.color),
-                    share: share[i],
-                  }),
+                  this.renderRow(
+                    cfg,
+                    m,
+                    i,
+                    palette,
+                    now,
+                    m.entity === total
+                      ? { share: null }
+                      : { color: seriesColor(i, m.color), share: share[i] },
+                  ),
                 )}
               </div>`
             : nothing
         }
       </ha-card>
     `;
+  }
+
+  /**
+   * chartMeters are the meters drawn as chart series, with their config index. A meter
+   * that is also the total is left out: it would count the total twice.
+   */
+  private chartMeters(cfg: ResolvedCard): { m: ResolvedMeter; i: number }[] {
+    const total = this.chartTotal(cfg);
+    return cfg.meters.flatMap((m, i) => (m.entity === total ? [] : [{ m, i }]));
   }
 
   /** unitOf is the meter's configured unit, else the entity's reported one. */
@@ -405,7 +426,7 @@ export class ConstantPowermeterCard extends LitElement {
     const legend = cfg.rows
       ? nothing
       : renderLegend([
-          ...cfg.meters.map((m, i) => ({
+          ...this.chartMeters(cfg).map(({ m, i }) => ({
             key: String(i),
             name: this.meterName(m),
             color: seriesColor(i, m.color),
@@ -430,7 +451,7 @@ export class ConstantPowermeterCard extends LitElement {
     kind: 'stacked' | 'lines',
     now: number,
   ): TemplateResult {
-    const series: Series[] = cfg.meters.map((m, i) => ({
+    const series: Series[] = this.chartMeters(cfg).map(({ m, i }) => ({
       key: String(i),
       name: this.meterName(m),
       color: seriesColor(i, m.color),
@@ -474,7 +495,7 @@ export class ConstantPowermeterCard extends LitElement {
 
   /** renderDonutChart splits the live readings, easing between real values like the rows. */
   private renderDonutChart(cfg: ResolvedCard, now: number): TemplateResult {
-    const items = cfg.meters.map((m, i) => {
+    const items = this.chartMeters(cfg).map(({ m, i }) => {
       const unit = this.unitOf(m.entity, m);
       const v = this.shownValue(m.entity, parseState(this.hass!.states[m.entity]?.state), now);
       return {
@@ -527,7 +548,7 @@ export class ConstantPowermeterCard extends LitElement {
         <div class="head">
           <span class="name" title=${name}
             >${
-              extras
+              extras?.color
                 ? html`<span class="swatch" style="background: ${extras.color}"></span>`
                 : nothing
             }${name}</span
