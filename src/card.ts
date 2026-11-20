@@ -300,10 +300,19 @@ export class ConstantPowermeterCard extends LitElement {
     :host {
       display: block;
     }
+    /* One grid for the whole panel: every row shares the name, sparkline and value
+       columns, so sparklines and values line up across meters. */
     .rows {
+      display: grid;
+      grid-template-columns: var(--cpm-name-width, 8em) minmax(0, 1fr) auto;
+      column-gap: 12px;
       padding: 8px 0;
     }
     .row {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      align-items: center;
       padding: 6px 16px;
       outline: none;
     }
@@ -318,11 +327,7 @@ export class ConstantPowermeterCard extends LitElement {
       outline-offset: -2px;
     }
     .line {
-      display: grid;
-      grid-template-columns: var(--cpm-name-width, 8em) minmax(0, 1fr) auto;
-      align-items: center;
-      column-gap: 12px;
-      min-height: 24px;
+      display: contents;
     }
     .name {
       overflow: hidden;
@@ -351,6 +356,7 @@ export class ConstantPowermeterCard extends LitElement {
       margin-left: 0.25em;
     }
     .track {
+      grid-column: 1 / -1;
       position: relative;
       height: 6px;
       margin-top: 6px;
