@@ -22,6 +22,15 @@ describe('renderStacked', () => {
     expect(area.getAttribute('style')).toContain('var(--graph-color-1');
     expect(area.getAttribute('d')).not.toContain('NaN');
   });
+  it('rounds the edge caps so a lone bucket stays visible', () => {
+    const el = draw(
+      renderStacked([{ key: 'a', color: 'red', lower: [null, 0], upper: [null, 5] }], {
+        lo: 0,
+        hi: 10,
+      }),
+    );
+    expect(el.querySelector('path.edge')!.getAttribute('stroke-linecap')).toBe('round');
+  });
   it('splits a band at gaps', () => {
     const el = draw(
       renderStacked([{ key: 'a', color: 'red', lower: [0, null, 0], upper: [1, null, 1] }], {

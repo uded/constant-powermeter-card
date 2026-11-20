@@ -483,6 +483,224 @@ describe('ConstantPowermeterCard', () => {
   });
 });
 
+describe('combined charts', () => {
+  /** The top-left range label as a number. */
+  const topLabel = (el: HTMLElement) =>
+    Number(el.shadowRoot!.querySelector('.chart .label.top')!.textContent!.replace(/[^\d.-]/g, ''));
+
+  it('renders exactly as before without a chart', async () => {
+    const el = await mount({ meters: ['sensor.a'] }, makeHass({ 'sensor.a': kitchen }));
+    expect(el.shadowRoot!.querySelector('.chart')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.row .swatch')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.share')).toBeNull();
+    expect(rows(el)[0].querySelector('.value')!.textContent).not.toContain('%');
+  });
+
+  it('ignores total without a chart', async () => {
+    vi.useFakeTimers();
+    const conn = mockConnection();
+    const hass = makeHass({ 'sensor.a': kitchen, 'sensor.t': entity('sensor.t', '5000') }, conn);
+    const el = await mount({ total: 'sensor.t', meters: ['sensor.a'] }, hass);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.calls[0].msg.entity_ids).toEqual(['sensor.a']);
+    expect(el.shadowRoot!.querySelector('.chart')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.share')).toBeNull();
+  });
+
+  it('shows the chart, swatches and shares with chart set', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '300'),
+      'sensor.b': entity('sensor.b', '100'),
+    });
+    const el = await mount({ chart: ['stacked', 'donut'], meters: ['sensor.a', 'sensor.b'] }, hass);
+    expect(el.shadowRoot!.querySelector('.chart .stacked')).not.toBeNull();
+    expect(el.shadowRoot!.querySelector('.chart .donut')).not.toBeNull();
+    expect(rows(el).map((r) => r.querySelector('.share')!.textContent)).toEqual(['75%', '25%']);
+    expect(rows(el)[0].querySelector('.swatch')).not.toBeNull();
+    expect(rows(el)[0].querySelector('.swatch')!.getAttribute('style')).toContain(
+      'var(--graph-color-1',
+    );
+  });
+
+  it('draws the live value at the right edge of the time chart before history arrives', async () => {
+    const el = await mount(
+      { chart: 'stacked', meters: ['sensor.a'] },
+      makeHass({ 'sensor.a': entity('sensor.a', '300') }),
+    );
+    const edge = el.shadowRoot!.querySelector('.stacked path.edge')!;
+    const xs = [...edge.getAttribute('d')!.matchAll(/[ML](-?[\d.]+) /g)].map((m) => Number(m[1]));
+    expect(xs.length).toBeGreaterThan(0);
+    expect(xs.every((x) => x === 60)).toBe(true);
+  });
+
+  it('renders a lines chart without a donut', async () => {
+    const el = await mount(
+      { chart: 'lines', meters: ['sensor.a'] },
+      makeHass({ 'sensor.a': entity('sensor.a', '300') }),
+    );
+    expect(el.shadowRoot!.querySelector('.chart .lines path.series')).not.toBeNull();
+    expect(el.shadowRoot!.querySelector('.chart .stacked')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.chart .donut')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.chart .label.bottom')!.textContent!.trim()).toBe('1 h');
+  });
+
+  it('labels a sub-hour window in minutes', async () => {
+    const el = await mount(
+      { chart: 'stacked', hours: 0.5, meters: ['sensor.a'] },
+      makeHass({ 'sensor.a': entity('sensor.a', '300') }),
+    );
+    expect(el.shadowRoot!.querySelector('.chart .label.bottom')!.textContent!.trim()).toBe(
+      '30 min',
+    );
+  });
+
+  it('converts units before computing Untracked and shares', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '500', { unit_of_measurement: 'W' }),
+      'sensor.t': entity('sensor.t', '2', { unit_of_measurement: 'kW' }),
+    });
+    const el = await mount({ chart: 'donut', total: 'sensor.t', meters: ['sensor.a'] }, hass);
+    expect(rows(el)[0].querySelector('.share')!.textContent).toBe('25%');
+    expect(el.shadowRoot!.querySelectorAll('.donut .slice').length).toBe(2); // a + Untracked
+    expect(el.shadowRoot!.querySelector('.donut .center')!.textContent!.trim()).toBe('2,000 W');
+  });
+
+  it('shows an empty ring and — when no meter has a positive value', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '0', { unit_of_measurement: 'W' }),
+      'sensor.t': entity('sensor.t', '0', { unit_of_measurement: 'W' }),
+    });
+    const el = await mount({ chart: 'donut', total: 'sensor.t', meters: ['sensor.a'] }, hass);
+    expect(el.shadowRoot!.querySelectorAll('.donut .slice')).toHaveLength(0);
+    expect(el.shadowRoot!.querySelector('.donut .empty-ring')).not.toBeNull();
+    expect(el.shadowRoot!.querySelector('.donut .center')!.textContent!.trim()).toBe('—');
+  });
+
+  it('subscribes to the total entity too', async () => {
+    vi.useFakeTimers();
+    const conn = mockConnection();
+    const hass = makeHass(
+      { 'sensor.a': entity('sensor.a', '300'), 'sensor.t': entity('sensor.t', '1000') },
+      conn,
+    );
+    await mount({ chart: 'stacked', total: 'sensor.t', meters: ['sensor.a'] }, hass);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.calls).toHaveLength(1);
+    expect(conn.calls[0].msg.entity_ids).toContain('sensor.t');
+    expect(conn.calls[0].msg.entity_ids).toContain('sensor.a');
+  });
+
+  it('re-renders when only the total entity changes', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '500'),
+      'sensor.t': entity('sensor.t', '1000'),
+    });
+    const el = await mount({ chart: 'donut', total: 'sensor.t', meters: ['sensor.a'] }, hass);
+    expect(rows(el)[0].querySelector('.share')!.textContent).toBe('50%');
+    el.hass = { ...hass, states: { ...hass.states, 'sensor.t': entity('sensor.t', '2000') } };
+    await el.updateComplete;
+    expect(rows(el)[0].querySelector('.share')!.textContent).toBe('25%');
+  });
+
+  it('adds an Untracked layer to the stack when total is set', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '500'),
+      'sensor.t': entity('sensor.t', '1000'),
+    });
+    const el = await mount({ chart: 'stacked', total: 'sensor.t', meters: ['sensor.a'] }, hass);
+    const edges = [...el.shadowRoot!.querySelectorAll('.stacked path.edge')];
+    expect(edges).toHaveLength(2);
+    expect(edges[1].getAttribute('style')).toContain('var(--disabled-color');
+  });
+
+  it('hides rows and shows a legend with rows: false', async () => {
+    const hass = makeHass({
+      'sensor.a': entity('sensor.a', '300', { friendly_name: 'Kitchen' }),
+      'sensor.b': entity('sensor.b', '100', { friendly_name: 'Office' }),
+      'sensor.t': entity('sensor.t', '1000'),
+    });
+    const el = await mount(
+      { chart: 'donut', rows: false, total: 'sensor.t', meters: ['sensor.a', 'sensor.b'] },
+      hass,
+    );
+    expect(rows(el)).toHaveLength(0);
+    const items = [...el.shadowRoot!.querySelectorAll('.chart .legend .legend-item')];
+    expect(items.map((i) => i.textContent!.trim())).toEqual(['Kitchen', 'Office', 'Untracked']);
+    expect(items.every((i) => i.querySelector('.swatch'))).toBe(true);
+  });
+
+  it('shows no legend when rows are shown', async () => {
+    const el = await mount(
+      { chart: 'donut', meters: ['sensor.a'] },
+      makeHass({ 'sensor.a': entity('sensor.a', '300') }),
+    );
+    expect(el.shadowRoot!.querySelector('.legend')).toBeNull();
+  });
+
+  it('uses mean buckets for stacked and peak buckets for lines', async () => {
+    const spike = 4000;
+    const history = async (chart: string) => {
+      vi.useFakeTimers();
+      const conn = mockConnection();
+      const hass = makeHass({ 'sensor.a': entity('sensor.a', '100') }, conn);
+      const el = await mount({ chart, hours: 1, meters: ['sensor.a'] }, hass);
+      await vi.advanceTimersByTimeAsync(1000);
+      const now = Date.now();
+      // 100 W, then a 10 s spike in the middle of the window, then 100 W again.
+      conn.push({
+        states: {
+          'sensor.a': [
+            { s: '100', lu: (now - 50 * 60_000) / 1000 },
+            { s: String(spike), lu: (now - 30 * 60_000) / 1000 },
+            { s: '100', lu: (now - 30 * 60_000 + 10_000) / 1000 },
+          ],
+        },
+      });
+      await el.updateComplete;
+      return el;
+    };
+
+    const stacked = await history('stacked');
+    // The bucket holding the spike averages to about 750 W, far below the spike.
+    expect(topLabel(stacked)).toBeLessThan(spike);
+    expect(topLabel(stacked)).toBeGreaterThan(700);
+    stacked.remove();
+    vi.useRealTimers();
+
+    const lines = await history('lines');
+    // Peak buckets keep the spike: the range top is the spike padded by 5%.
+    expect(topLabel(lines)).toBe(spike * 1.05);
+    const ys = [
+      ...lines
+        .shadowRoot!.querySelector('.lines path.series')!
+        .getAttribute('d')!
+        .matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g),
+    ].map((m) => Number(m[2]));
+    // The highest point of the line sits at the spike value.
+    expect(Math.min(...ys)).toBeCloseTo(24 * (1 - spike / (spike * 1.05)), 1);
+  });
+
+  it('keeps CSS colors out of fill and stroke attributes', async () => {
+    const el = await mount(
+      { chart: ['lines', 'donut'], meters: ['sensor.a'] },
+      makeHass({ 'sensor.a': entity('sensor.a', '300') }),
+    );
+    const painted = [...el.shadowRoot!.querySelectorAll('.chart path, .chart circle')];
+    expect(painted.length).toBeGreaterThan(0);
+    for (const p of painted) {
+      expect(p.getAttribute('stroke') ?? '').not.toContain('var(');
+      expect(p.getAttribute('fill') ?? '').not.toContain('var(');
+    }
+  });
+
+  it('grows the card size when a chart is shown', async () => {
+    const hass = makeHass({ 'sensor.a': kitchen });
+    const plain = await mount({ meters: ['sensor.a'] }, hass);
+    const charted = await mount({ chart: 'stacked', meters: ['sensor.a'] }, hass);
+    expect(charted.getCardSize()).toBeGreaterThan(plain.getCardSize());
+  });
+});
+
 describe('bucketColors', () => {
   const meter = { normal: 10, warning: 20, critical: 30, twoSided: false };
   const palette = {

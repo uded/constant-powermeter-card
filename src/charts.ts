@@ -62,7 +62,7 @@ export function renderStacked(bands: Band[], range: Range): SVGTemplateResult {
           const area = `${poly(top)} ${poly(bottom, 'L')} Z`;
           return svg`
             <path class="band" d=${area} style="fill: ${b.color}; fill-opacity: 0.6"></path>
-            <path class="edge" d=${poly(top)} fill="none" style="stroke: ${b.color}" stroke-width="1" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
+            <path class="edge" d=${poly(top)} fill="none" style="stroke: ${b.color}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`;
         });
       })}
     </svg>

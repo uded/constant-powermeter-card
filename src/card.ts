@@ -1,13 +1,41 @@
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { runTapAction } from './actions';
-import { bucketize } from './buckets';
+import { bucketize, bucketizeMean } from './buckets';
+import { renderDonut, renderLegend, renderLines, renderStacked } from './charts';
+import {
+  donutSlices,
+  linesRange,
+  shares,
+  stackBands,
+  stackRange,
+  untrackedBuckets,
+} from './combine';
 import { normalizeConfig, type CardConfig, type ResolvedCard, type ResolvedMeter } from './config';
 import { numberFormat } from './format';
 import { barGeometry, sparklineRange } from './geometry';
 import { StreamHistorySource } from './history';
 import { levelColor, resolvePalette, type Palette } from './levels';
+import { isPowerUnit, seriesColor, toWatts } from './series';
 import { renderSparkline } from './sparkline';
+import { UNTRACKED_COLOR, UNTRACKED_KEY, UNTRACKED_NAME, type Series } from './types/chart';
 import type { HomeAssistant } from './types/ha';
+
+/** RowExtras are the chart-only parts of a row: the series swatch and the share. */
+interface RowExtras {
+  color: string;
+  share: number | null;
+}
+
+/** hasChart is true when the config shows a time chart or a donut. */
+function hasChart(cfg: ResolvedCard): boolean {
+  return cfg.timeChart !== undefined || cfg.donut;
+}
+
+/** windowLabel names the chart window, e.g. `1 h` or `30 min`. */
+function windowLabel(hours: number): string {
+  if (hours < 1) return `${Math.round(hours * 60)} min`;
+  return `${Math.round(hours * 100) / 100} h`;
+}
 
 const BUCKETS = 60;
 const HOUR_MS = 3_600_000;
@@ -114,9 +142,14 @@ export class ConstantPowermeterCard extends LitElement {
 
   /** getCardSize estimates the height in 50 px units. */
   getCardSize(): number {
-    if (!this.config) return 1;
-    const lines = this.config.meters.reduce((n, m) => n + (m.display.includes('bar') ? 2 : 1), 0);
-    return (this.config.title ? 1 : 0) + Math.max(1, Math.ceil(lines / 2));
+    const cfg = this.config;
+    if (!cfg) return 1;
+    const lines = cfg.meters.reduce((n, m) => n + (m.display.includes('bar') ? 2 : 1), 0);
+    const title = cfg.title ? 1 : 0;
+    if (!hasChart(cfg)) return title + Math.max(1, Math.ceil(lines / 2));
+    // The chart is about 150 px; without rows a one-line legend sits under it.
+    const below = cfg.rows ? Math.max(1, Math.ceil(lines / 2)) : 1;
+    return title + 3 + below;
   }
 
   /**
@@ -204,10 +237,15 @@ export class ConstantPowermeterCard extends LitElement {
   private syncHistory(): void {
     if (!this.isConnected || !this.hass || !this.config) return;
     this.history ??= new StreamHistorySource(this.hass.connection, () => this.requestUpdate());
-    this.history.update(
-      this.config.meters.map((m) => m.entity),
-      this.config.hours,
-    );
+    const ids = this.config.meters.map((m) => m.entity);
+    const total = this.chartTotal(this.config);
+    if (total !== undefined) ids.push(total);
+    this.history.update(ids, this.config.hours);
+  }
+
+  /** chartTotal is the total entity, which only counts while a chart is shown. */
+  private chartTotal(cfg: ResolvedCard): string | undefined {
+    return hasChart(cfg) ? cfg.total : undefined;
   }
 
   protected shouldUpdate(changed: PropertyValues): boolean {
@@ -217,6 +255,8 @@ export class ConstantPowermeterCard extends LitElement {
     if (!old || !hass || !this.config) return true;
     if (old.themes !== hass.themes || old.locale !== hass.locale) return true;
     if (old.entities !== hass.entities) return true;
+    const total = this.chartTotal(this.config);
+    if (total !== undefined && old.states[total] !== hass.states[total]) return true;
     return this.config.meters.some((m) => old.states[m.entity] !== hass.states[m.entity]);
   }
 
@@ -265,11 +305,194 @@ export class ConstantPowermeterCard extends LitElement {
     const palette = this.palette ?? resolvePalette(this, cfg.colors);
     if (this.isConnected) this.palette = palette;
     const now = Date.now();
+    if (hasChart(cfg)) return this.renderCharted(cfg, palette, now);
     return html`
       <ha-card .header=${cfg.title}>
         <div class="rows">${cfg.meters.map((m, i) => this.renderRow(cfg, m, i, palette, now))}</div>
       </ha-card>
     `;
+  }
+
+  /** renderCharted is the card with a chart on top; the rows (if shown) get swatches and shares. */
+  private renderCharted(cfg: ResolvedCard, palette: Palette, now: number): TemplateResult {
+    const total = this.chartTotal(cfg);
+    const totalW = total === undefined ? null : this.liveWatts(total, this.unitOf(total));
+    const share = shares(
+      cfg.meters.map((m) => this.liveWatts(m.entity, this.unitOf(m.entity, m))),
+      totalW,
+    );
+    return html`
+      <ha-card .header=${cfg.title}>
+        ${this.renderChart(cfg, now)}
+        ${
+          cfg.rows
+            ? html`<div class="rows">
+                ${cfg.meters.map((m, i) =>
+                  this.renderRow(cfg, m, i, palette, now, {
+                    color: seriesColor(i, m.color),
+                    share: share[i],
+                  }),
+                )}
+              </div>`
+            : nothing
+        }
+      </ha-card>
+    `;
+  }
+
+  /** unitOf is the meter's configured unit, else the entity's reported one. */
+  private unitOf(entity: string, m?: ResolvedMeter): string | undefined {
+    return m?.unit ?? this.hass!.states[entity]?.attributes.unit_of_measurement;
+  }
+
+  private meterName(m: ResolvedMeter): string {
+    return m.name ?? this.hass!.states[m.entity]?.attributes.friendly_name ?? m.entity;
+  }
+
+  /** liveWatts is the entity's current real reading converted to watts, or null. */
+  private liveWatts(entity: string, unit: string | undefined): number | null {
+    const v = parseState(this.hass!.states[entity]?.state);
+    return v === null ? null : toWatts(v, unit);
+  }
+
+  /**
+   * chartUnit is the unit the combined charts are drawn in: W when the first meter
+   * reports a power unit (everything is converted to W), else that meter's own unit.
+   */
+  private chartUnit(cfg: ResolvedCard): { unit: string; precision: number } {
+    const first = cfg.meters[0];
+    const unit = this.unitOf(first.entity, first);
+    if (isPowerUnit(unit)) return { unit: 'W', precision: 0 };
+    return {
+      unit: unit ?? '',
+      precision: clampPrecision(
+        first.precision ?? this.hass!.entities?.[first.entity]?.display_precision,
+      ),
+    };
+  }
+
+  private formatWithUnit(value: number, u: { unit: string; precision: number }): string {
+    const n = this.format(value, u.precision);
+    return u.unit ? `${n} ${u.unit}` : n;
+  }
+
+  /**
+   * chartBuckets resamples one entity's history to BUCKETS buckets in watts: the
+   * time-weighted mean for the stack, the peak for lines. The last bucket is always
+   * the live reading, so the chart ends at its right edge with the current value.
+   */
+  private chartBuckets(
+    cfg: ResolvedCard,
+    now: number,
+    entity: string,
+    unit: string | undefined,
+    twoSided: boolean,
+  ): (number | null)[] {
+    const samples = this.history?.store.get(entity) ?? [];
+    const window = { start: now - cfg.hours * HOUR_MS, end: now, count: BUCKETS };
+    const buckets =
+      cfg.timeChart === 'stacked'
+        ? bucketizeMean(samples, window)
+        : bucketize(samples, { ...window, twoSided });
+    buckets[buckets.length - 1] = parseState(this.hass!.states[entity]?.state);
+    return buckets.map((v) => (v === null ? null : toWatts(v, unit)));
+  }
+
+  private renderChart(cfg: ResolvedCard, now: number): TemplateResult {
+    const legend = cfg.rows
+      ? nothing
+      : renderLegend([
+          ...cfg.meters.map((m, i) => ({
+            key: String(i),
+            name: this.meterName(m),
+            color: seriesColor(i, m.color),
+          })),
+          ...(this.chartTotal(cfg) === undefined
+            ? []
+            : [{ key: UNTRACKED_KEY, name: UNTRACKED_NAME, color: UNTRACKED_COLOR }]),
+        ]);
+    return html`
+      <div class="chart">
+        <div class="chart-body">
+          ${cfg.timeChart ? this.renderTimeChart(cfg, cfg.timeChart, now) : nothing}
+          ${cfg.donut ? this.renderDonutChart(cfg, now) : nothing}
+        </div>
+        ${legend}
+      </div>
+    `;
+  }
+
+  private renderTimeChart(
+    cfg: ResolvedCard,
+    kind: 'stacked' | 'lines',
+    now: number,
+  ): TemplateResult {
+    const series: Series[] = cfg.meters.map((m, i) => ({
+      key: String(i),
+      name: this.meterName(m),
+      color: seriesColor(i, m.color),
+      buckets: this.chartBuckets(cfg, now, m.entity, this.unitOf(m.entity, m), m.twoSided),
+    }));
+    const total = this.chartTotal(cfg);
+    const totalBuckets =
+      total === undefined
+        ? undefined
+        : this.chartBuckets(cfg, now, total, this.unitOf(total), false);
+    const untracked = totalBuckets && untrackedBuckets(totalBuckets, series);
+
+    let drawing;
+    let range;
+    if (kind === 'stacked') {
+      const bands = stackBands(series, untracked);
+      range = stackRange(bands);
+      drawing = renderStacked(bands, range);
+    } else {
+      const all = [...series];
+      if (untracked && totalBuckets) {
+        all.push({
+          key: UNTRACKED_KEY,
+          name: UNTRACKED_NAME,
+          color: UNTRACKED_COLOR,
+          // A bucket without a total reading is a gap in the line, not a drop to 0.
+          buckets: untracked.map((v, i) => (totalBuckets[i] === null ? null : v)),
+        });
+      }
+      range = linesRange(all);
+      drawing = renderLines(all, range);
+    }
+    return html`
+      <div class="time ${kind}">
+        ${drawing}
+        <span class="label top">${this.formatWithUnit(range.hi, this.chartUnit(cfg))}</span>
+        <span class="label bottom">${windowLabel(cfg.hours)}</span>
+      </div>
+    `;
+  }
+
+  /** renderDonutChart splits the live readings, easing between real values like the rows. */
+  private renderDonutChart(cfg: ResolvedCard, now: number): TemplateResult {
+    const items = cfg.meters.map((m, i) => {
+      const unit = this.unitOf(m.entity, m);
+      const v = this.shownValue(m.entity, parseState(this.hass!.states[m.entity]?.state), now);
+      return {
+        key: String(i),
+        name: this.meterName(m),
+        color: seriesColor(i, m.color),
+        value: v === null ? null : toWatts(v, unit),
+      };
+    });
+    const total = this.chartTotal(cfg);
+    let totalW: number | null = null;
+    if (total !== undefined) {
+      const v = this.shownValue(total, parseState(this.hass!.states[total]?.state), now);
+      totalW = v === null ? null : toWatts(v, this.unitOf(total));
+    }
+    const { slices, center } = donutSlices(items, totalW);
+    const text =
+      slices.length === 0 || center === null
+        ? '—'
+        : this.formatWithUnit(center, this.chartUnit(cfg));
+    return html`<div class="donut">${renderDonut(slices, text)}</div>`;
   }
 
   private renderRow(
@@ -278,6 +501,7 @@ export class ConstantPowermeterCard extends LitElement {
     index: number,
     palette: Palette,
     now: number,
+    extras?: RowExtras,
   ): TemplateResult {
     const st = this.hass!.states[m.entity];
     const value = parseState(st?.state);
@@ -298,7 +522,13 @@ export class ConstantPowermeterCard extends LitElement {
         @keydown=${(ev: KeyboardEvent) => this.onKey(ev, m)}
       >
         <div class="head">
-          <span class="name" title=${name}>${name}</span>
+          <span class="name" title=${name}
+            >${
+              extras
+                ? html`<span class="swatch" style="background: ${extras.color}"></span>`
+                : nothing
+            }${name}</span
+          >
           <span class="spark">
             ${
               m.display.includes('sparkline')
@@ -309,6 +539,10 @@ export class ConstantPowermeterCard extends LitElement {
           <span class="value"
             >${shown === null ? '—' : this.format(shown, precision)}${
               value !== null && unit ? html`<span class="unit">${unit}</span>` : nothing
+            }${
+              extras && extras.share !== null
+                ? html`<span class="share">${extras.share}%</span>`
+                : nothing
             }</span
           >
         </div>
@@ -444,13 +678,108 @@ export class ConstantPowermeterCard extends LitElement {
         width 500ms cubic-bezier(0.33, 1, 0.68, 1),
         left 500ms cubic-bezier(0.33, 1, 0.68, 1);
     }
-    .zero {
+    .track .zero {
       position: absolute;
       top: -2px;
       bottom: -2px;
       width: 1px;
       margin-left: -0.5px;
       background: var(--secondary-text-color);
+    }
+    /* Combined charts. The chart is its own container, so the donut can move below
+       the time chart when the card is narrow, whatever the dashboard layout. */
+    .chart {
+      container-type: inline-size;
+      padding: 12px 16px 0;
+    }
+    .chart-body {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    /* The labels sit in the padding, above and below the plot, so they never cover it. */
+    .time {
+      position: relative;
+      padding: 14px 0;
+      flex: 1 1 auto;
+      min-width: 0;
+      color: var(--secondary-text-color);
+    }
+    .time svg {
+      display: block;
+      width: 100%;
+      height: 120px;
+      overflow: visible;
+    }
+    .label {
+      position: absolute;
+      left: 0;
+      font-size: 11px;
+      line-height: 1;
+      color: var(--secondary-text-color);
+      pointer-events: none;
+    }
+    .label.top {
+      top: 0;
+    }
+    .label.bottom {
+      bottom: 0;
+    }
+    .donut {
+      flex: 0 0 120px;
+      color: var(--primary-text-color);
+    }
+    .donut svg {
+      display: block;
+      width: 100%;
+      max-width: 120px;
+      height: auto;
+      margin: 0 auto;
+    }
+    /* SVG text sizes are in viewBox units (100 across), so 13 fits inside the ring. */
+    .donut .center {
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    @container (max-width: 360px) {
+      .chart-body {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .donut {
+        flex-basis: auto;
+        align-self: center;
+        width: 120px;
+      }
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+      padding-top: 8px;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+    }
+    .swatch {
+      display: inline-block;
+      flex: none;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      border-radius: 2px;
+      vertical-align: middle;
+    }
+    .share {
+      color: var(--secondary-text-color);
+    }
+    .share::before {
+      content: '·';
+      margin: 0 0.35em;
     }
     @media (prefers-reduced-motion: reduce) {
       .fill {

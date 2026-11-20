@@ -14,6 +14,11 @@ export const FALLBACK_SERIES: readonly string[] = [
 
 const POWER_FACTORS: Readonly<Record<string, number>> = { W: 1, kW: 1000, MW: 1_000_000 };
 
+/** True for the power units toWatts converts (W, kW, MW). */
+export function isPowerUnit(unit: string | undefined): boolean {
+  return unit !== undefined && Object.hasOwn(POWER_FACTORS, unit);
+}
+
 /** Converts a power value to watts; other units pass through unchanged. */
 export function toWatts(value: number, unit: string | undefined): number {
   if (unit === undefined || !Object.hasOwn(POWER_FACTORS, unit)) return value;
