@@ -2,6 +2,14 @@
 
 All notable changes to this card. Each release on GitHub uses its section from this file as release notes.
 
+## [0.1.6] - 2026-11-20
+
+### Fixed
+
+- In the visual editor, an open meter panel now stays with its meter when you move it up or down, delete another meter, or add a new one. Before, the open panel stayed at the same position, so after a move a different meter was suddenly open. This also works when you reorder meters in YAML and switch back to the editor.
+- A Navigate or URL tap action you picked but have not filled in yet also stays with its meter, instead of being dropped or jumping to the meter that moved into its place.
+- Values follow the Number format setting from your Home Assistant profile (for example `1,234.5`, `1.234,5`, `1 234,5`, or no thousands separator), the same way the built-in cards do. Before, the card used only your language and ignored that setting.
+
 ## [0.1.5] - 2026-11-20
 
 ### Fixed
@@ -72,6 +80,7 @@ First release.
 - Native Home Assistant look: uses `ha-card` and your theme's colors and fonts.
 - History comes from one `history/stream` subscription per card.
 
+[0.1.6]: https://github.com/uded/constant-powermeter-card/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/uded/constant-powermeter-card/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/uded/constant-powermeter-card/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/uded/constant-powermeter-card/compare/v0.1.2...v0.1.3
