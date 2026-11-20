@@ -1,6 +1,6 @@
 {
   "name": "constant-powermeter-card",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Home Assistant Lovelace card showing power meters with sparkline and bar",
