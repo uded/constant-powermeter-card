@@ -46,4 +46,4 @@ tasks:
   serve:
     internal: true
     cmds:
-      - npx vite preview --outDir dev --port 5173
+      - npx vite --port 5173 --strictPort --open /dev/index.html

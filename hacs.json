@@ -1,1 +1,5 @@
-{ "name": "Constant Powermeter Card", "filename": "constant-powermeter-card.js", "render_readme": true }
+{
+  "name": "Constant Powermeter Card",
+  "filename": "constant-powermeter-card.js",
+  "render_readme": true
+}

@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Constant Powermeter Card: dev harness</title>
+    <style>
+      :root {
+        --card-background-color: #ffffff;
+        --primary-text-color: #212121;
+        --secondary-text-color: #727272;
+        --divider-color: #e0e0e0;
+        --disabled-text-color: #bdbdbd;
+        --primary-color: #03a9f4;
+        --success-color: #43a047;
+        --warning-color: #ffa600;
+        --error-color: #db4437;
+        --ha-card-border-radius: 12px;
+        --ha-card-box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12);
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: Roboto, system-ui, sans-serif;
+        background: var(--harness-bg, #fafafa);
+        color: var(--primary-text-color);
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      header h1 {
+        font-size: 18px;
+        font-weight: 500;
+        margin: 0;
+        flex: 1;
+      }
+      button {
+        font: inherit;
+        padding: 6px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--divider-color);
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        cursor: pointer;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+        gap: 16px;
+        align-items: start;
+      }
+      /* Minimal stand-in for HA's ha-card, which only exists inside Home Assistant. */
+      ha-card {
+        display: block;
+        background: var(--card-background-color);
+        color: var(--primary-text-color);
+        border-radius: var(--ha-card-border-radius);
+        box-shadow: var(--ha-card-box-shadow);
+        overflow: hidden;
+      }
+      ha-card[header]::before {
+        content: attr(header);
+        display: block;
+        padding: 16px 16px 0;
+        font-size: 24px;
+      }
+      #log {
+        margin-top: 16px;
+        font:
+          12px/1.5 ui-monospace,
+          monospace;
+        color: var(--secondary-text-color);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Constant Powermeter Card: dev harness</h1>
+      <span id="clock"></span>
+      <button id="theme" type="button">Switch to dark</button>
+    </header>
+    <div class="grid" id="grid"></div>
+    <div id="log"></div>
+
+    <script type="module">
+      import '../dist/constant-powermeter-card.js';
+
+      // Reflect the header property to an attribute so the CSS stand-in can show it.
+      customElements.define(
+        'ha-card',
+        class extends HTMLElement {
+          set header(v) {
+            if (v) this.setAttribute('header', v);
+            else this.removeAttribute('header');
+          }
+        },
+      );
+
+      const HOUR = 3600;
+      const STEP = 5; // seconds between samples
+      const LIGHT = {
+        '--card-background-color': '#ffffff',
+        '--primary-text-color': '#212121',
+        '--secondary-text-color': '#727272',
+        '--divider-color': '#e0e0e0',
+        '--disabled-text-color': '#bdbdbd',
+        '--success-color': '#43a047',
+        '--warning-color': '#ffa600',
+        '--error-color': '#db4437',
+        '--harness-bg': '#fafafa',
+      };
+      const DARK = {
+        '--card-background-color': '#1c1c1c',
+        '--primary-text-color': '#e1e1e1',
+        '--secondary-text-color': '#9b9b9b',
+        '--divider-color': '#3c3c3c',
+        '--disabled-text-color': '#6f6f6f',
+        '--success-color': '#66bb6a',
+        '--warning-color': '#ffb74d',
+        '--error-color': '#ef5350',
+        '--harness-bg': '#111111',
+      };
+
+      // Fake sensors. Each generator maps epoch seconds to a state string.
+      const sensors = {
+        'sensor.grid_power': {
+          name: 'Grid',
+          unit: 'W',
+          value: (t) => Math.round(2000 * Math.sin(t / 600) + 700 * Math.sin(t / 97)),
+        },
+        'sensor.office_power': {
+          name: 'Office',
+          unit: 'W',
+          // Unavailable except for the first part of the history.
+          value: (t, now) =>
+            t < now - 20 * 60 ? String(Math.round(300 + 40 * Math.sin(t / 50))) : 'unavailable',
+        },
+        'sensor.fridge_power': {
+          name: 'Fridge',
+          unit: 'W',
+          // Steady: changes rarely, so HA would record few samples.
+          value: (t) => (Math.floor(t / 900) % 2 === 0 ? '118' : '121'),
+          sparse: true,
+        },
+        'sensor.kitchen_power': {
+          name: 'Kitchen',
+          unit: 'W',
+          value: (t) => {
+            const spike = Math.sin(t / 211) > 0.8 ? 2200 : 0;
+            const noise = 400 * Math.sin(t / 13) * Math.cos(t / 7);
+            return Math.max(0, Math.round(900 + spike + noise));
+          },
+        },
+      };
+
+      const nowSec = () => Date.now() / 1000;
+      const iso = (t) => new Date(t * 1000).toISOString();
+
+      function entityState(id, value, t) {
+        return {
+          entity_id: id,
+          state: String(value),
+          last_updated: iso(t),
+          attributes: { friendly_name: sensors[id].name, unit_of_measurement: sensors[id].unit },
+        };
+      }
+
+      function history(id, from, to) {
+        const s = sensors[id];
+        const out = [];
+        let prev;
+        for (let t = from; t <= to; t += STEP) {
+          const v = String(s.value(t, to));
+          if (s.sparse && v === prev) continue;
+          prev = v;
+          out.push({ s: v, lu: t });
+        }
+        return out;
+      }
+
+      // Mock connection: replays history on subscribe, then pushes a state every 5 s.
+      const subscriptions = new Set();
+      const connection = {
+        subscribeMessage(cb, msg) {
+          const ids = msg.entity_ids;
+          const now = nowSec();
+          const from = Date.parse(msg.start_time) / 1000;
+          const initial = {};
+          for (const id of ids) initial[id] = history(id, from, now);
+          const sub = { cb, ids };
+          subscriptions.add(sub);
+          console.info('[harness] history/stream subscribed', ids, msg.start_time);
+          setTimeout(() => cb({ states: initial }), 0);
+          return Promise.resolve(async () => {
+            subscriptions.delete(sub);
+            console.info('[harness] history/stream unsubscribed', ids);
+          });
+        },
+      };
+
+      let dark = false;
+      const hass = {
+        states: {},
+        entities: {},
+        themes: { darkMode: false },
+        locale: { language: 'en' },
+        connection,
+      };
+
+      function tick() {
+        const t = nowSec();
+        const states = { ...hass.states };
+        for (const id of Object.keys(sensors)) {
+          const v = sensors[id].value(t, t);
+          states[id] = entityState(id, v, t);
+        }
+        hass.states = states;
+        for (const sub of subscriptions) {
+          const msg = {};
+          for (const id of sub.ids) {
+            msg[id] = [{ s: states[id].state, lu: t }];
+          }
+          sub.cb({ states: msg });
+        }
+        publish();
+        document.getElementById('clock').textContent = new Date().toLocaleTimeString();
+      }
+
+      const cards = [];
+      function publish() {
+        // A fresh hass object per update, like HA does. Unchanged state objects stay identical.
+        const next = { ...hass };
+        for (const c of cards) c.hass = next;
+      }
+
+      const configs = [
+        {
+          type: 'custom:constant-powermeter-card',
+          title: 'Per-room power',
+          display: ['sparkline', 'bar'],
+          hours: 1,
+          meters: [
+            {
+              entity: 'sensor.grid_power',
+              name: 'Grid (two-sided)',
+              unit: 'W',
+              min: -3000,
+              max: 7000,
+              normal: 1000,
+              warning: 3000,
+              critical: 5000,
+            },
+            { entity: 'sensor.office_power', name: 'Office (unavailable)', max: 3500 },
+            { entity: 'sensor.fridge_power', name: 'Fridge (steady)', max: 500 },
+            {
+              entity: 'sensor.kitchen_power',
+              name: 'Kitchen (noisy)',
+              max: 3500,
+              normal: 500,
+              warning: 2000,
+              critical: 3000,
+            },
+          ],
+        },
+        {
+          type: 'custom:constant-powermeter-card',
+          title: 'Bar only, step colors',
+          display: ['bar'],
+          blend: false,
+          meters: ['sensor.kitchen_power', { entity: 'sensor.fridge_power', max: 500 }],
+        },
+      ];
+
+      const grid = document.getElementById('grid');
+      for (const cfg of configs) {
+        const card = document.createElement('constant-powermeter-card');
+        card.setConfig(cfg);
+        grid.append(card);
+        cards.push(card);
+      }
+      document.addEventListener('hass-more-info', (ev) => {
+        log(`hass-more-info: ${ev.detail.entityId}`);
+      });
+
+      const logEl = document.getElementById('log');
+      function log(text) {
+        logEl.textContent =
+          `${new Date().toLocaleTimeString()} ${text}\n${logEl.textContent}`.slice(0, 600);
+      }
+
+      function applyTheme() {
+        const vars = dark ? DARK : LIGHT;
+        for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
+        hass.themes = { darkMode: dark };
+        document.getElementById('theme').textContent = dark ? 'Switch to light' : 'Switch to dark';
+        publish();
+      }
+      document.getElementById('theme').addEventListener('click', () => {
+        dark = !dark;
+        applyTheme();
+      });
+
+      tick();
+      applyTheme();
+      setInterval(tick, STEP * 1000);
+    </script>
+  </body>
+</html>
