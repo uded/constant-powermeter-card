@@ -39,6 +39,7 @@ describe('renderSparkline gradient', () => {
     const lines = el.querySelectorAll('path.line');
     expect(lines).toHaveLength(2);
     expect(lines[0].getAttribute('stroke-linecap')).toBe('round');
+    expect(lines[0].getAttribute('stroke-width')).toBe('2');
     expect(lines[0].getAttribute('d')).toBe('M15 6 L15 6');
   });
   it('bases stop offsets on bucket count even if colors mismatch', () => {

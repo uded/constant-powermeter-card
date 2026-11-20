@@ -53,6 +53,13 @@ afterEach(() => {
 });
 
 describe('ConstantPowermeterCard', () => {
+  it('keeps card CSS from hiding the sparkline line', async () => {
+    const el = await mount({ meters: ['sensor.a'] }, makeHass({ 'sensor.a': kitchen }));
+    const line = el.shadowRoot!.querySelector('path.line')!;
+    expect(line).not.toBeNull();
+    expect(['none', 'contents']).not.toContain(getComputedStyle(line).display);
+  });
+
   it('sizes itself for sections dashboards', () => {
     const el = document.createElement('constant-powermeter-card') as ConstantPowermeterCard;
     expect(el.getGridOptions()).toEqual({ columns: 12, rows: 'auto', min_columns: 6 });

@@ -294,7 +294,7 @@ export class ConstantPowermeterCard extends LitElement {
         @click=${(ev: Event) => this.act(ev, m)}
         @keydown=${(ev: KeyboardEvent) => this.onKey(ev, m)}
       >
-        <div class="line">
+        <div class="head">
           <span class="name" title=${name}>${name}</span>
           <span class="spark">
             ${
@@ -392,7 +392,7 @@ export class ConstantPowermeterCard extends LitElement {
       outline: 2px solid var(--primary-color);
       outline-offset: -2px;
     }
-    .line {
+    .head {
       display: contents;
     }
     .name {
@@ -411,6 +411,9 @@ export class ConstantPowermeterCard extends LitElement {
       width: 100%;
       height: 24px;
       overflow: visible;
+    }
+    .spark path.line {
+      stroke-width: var(--cpm-line-width, 2px);
     }
     .value {
       color: var(--primary-text-color);

@@ -35,11 +35,11 @@ export function renderSparkline(
           : ''
       }
       ${areas.map(
-        (d) => svg`<path class="area" d=${d} fill="url(#${gradId})" fill-opacity="0.15"></path>`,
+        (d) => svg`<path class="area" d=${d} fill="url(#${gradId})" fill-opacity="0.2"></path>`,
       )}
       ${lines.map(
         (d) =>
-          svg`<path class="line" d=${d} fill="none" stroke="url(#${gradId})" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>`,
+          svg`<path class="line" d=${d} fill="none" stroke="url(#${gradId})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`,
       )}
     </svg>
   `;
