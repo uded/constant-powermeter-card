@@ -1,5 +1,5 @@
 // package.json
-var e = "0.1.4", t = globalThis, n = t.ShadowRoot && (t.ShadyCSS === void 0 || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, r = Symbol(), i = /* @__PURE__ */ new WeakMap(), a = class {
+var e = "0.1.5", t = globalThis, n = t.ShadowRoot && (t.ShadyCSS === void 0 || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, r = Symbol(), i = /* @__PURE__ */ new WeakMap(), a = class {
 	constructor(e, t, n) {
 		if (this._$cssResult$ = !0, n !== r) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
 		this.cssText = e, this.t = t;
@@ -906,8 +906,8 @@ function xt(e, t, n, r, i) {
         </linearGradient>
       </defs>
       ${r ? E`<line class="zero" x1="0" y1=${l} x2=${G} y2=${l} stroke="currentColor" stroke-opacity="0.3" vector-effect="non-scaling-stroke"></line>` : ""}
-      ${o.map((e) => E`<path class="area" d=${e} fill="url(#${s})" fill-opacity="0.15"></path>`)}
-      ${a.map((e) => E`<path class="line" d=${e} fill="none" stroke="url(#${s})" stroke-linecap="round" vector-effect="non-scaling-stroke"></path>`)}
+      ${o.map((e) => E`<path class="area" d=${e} fill="url(#${s})" fill-opacity="0.2"></path>`)}
+      ${a.map((e) => E`<path class="line" d=${e} fill="none" stroke="url(#${s})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`)}
     </svg>
   `;
 }
@@ -1058,7 +1058,7 @@ var jt = class extends F {
         @click=${(e) => this.act(e, t)}
         @keydown=${(e) => this.onKey(e, t)}
       >
-        <div class="line">
+        <div class="head">
           <span class="name" title=${c}>${c}</span>
           <span class="spark">
             ${t.display.includes("sparkline") ? this.renderSpark(e, t, o, r, i, n) : O}
@@ -1125,7 +1125,7 @@ var jt = class extends F {
       outline: 2px solid var(--primary-color);
       outline-offset: -2px;
     }
-    .line {
+    .head {
       display: contents;
     }
     .name {
@@ -1144,6 +1144,9 @@ var jt = class extends F {
       width: 100%;
       height: 24px;
       overflow: visible;
+    }
+    .spark path.line {
+      stroke-width: var(--cpm-line-width, 2px);
     }
     .value {
       color: var(--primary-text-color);
