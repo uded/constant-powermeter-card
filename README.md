@@ -90,7 +90,7 @@ Panel options:
 | `display`         | `[sparkline, bar]`     | One or both of `sparkline` and `bar`. Unknown values are ignored. |
 | `hours`           | `1`                    | Sparkline window in hours, 0.25 to 24.                            |
 | `sparkline_scale` | `fixed`                | `fixed` uses the meter's `min..max`, `auto` uses the data range.  |
-| `colors.normal`   | `var(--success-color)` | Any CSS color, including theme variables.                         |
+| `colors.normal`   | `var(--success-color)` | Any CSS color: named, hex, `rgb()`, `hsl()` or `var()`.           |
 | `colors.warning`  | `var(--warning-color)` |                                                                   |
 | `colors.critical` | `var(--error-color)`   |                                                                   |
 | `blend`           | `true`                 | Blend between level colors. `false` switches colors in steps.     |
@@ -115,13 +115,15 @@ Meter options:
 Notes:
 
 - Thresholds must satisfy `normal <= warning <= critical`. A config that breaks this still renders, the values are sorted, and the editor shows an error on that meter.
-- Derived threshold defaults are not written into the config, so they follow `min` and `max` when those change.
+- Derived threshold defaults are not written into the config, so they follow `min` and `max` when those change. A derived default never passes a threshold you set: with only `critical: 2500` on a 0 to 5000 meter, `warning` becomes 2500 instead of 3000.
 - Values are used exactly as the entity reports them. Thresholds, history and the bar all use the same unit.
 - A state that is `unavailable`, `unknown`, empty or not a number shows `—`, hides the bar fill, and leaves a gap in the sparkline.
 
 ### How level colors work
 
 The level comes from the meter's own thresholds. At or below `normal` the normal color is used. At or above `critical` the critical color is used. In between, the color is a blend of the two neighbouring levels when `blend: true`, or the lower level's color when `blend: false`. The value text keeps the theme's primary text color so it stays readable. Only the bar fill and the sparkline use the level color.
+
+The three colors accept any CSS color: a name (`blue`), hex (`#43a047`), `rgb()`, `hsl()`, or a theme variable such as `var(--success-color)`, with or without an inline fallback (`var(--my-color, #abc)`). A value the browser cannot read as a color uses the level's built-in default.
 
 ### Two-sided meters
 
@@ -174,7 +176,7 @@ Everything above can be set in the editor, with no YAML needed:
 
 - **Panel:** title, display (sparkline and bar), window in hours, sparkline scale, the three level colors, and the blend toggle.
 - **Meters:** one expandable section per meter, with entity, name, unit, precision, min, max, the three thresholds, display override and a tap action (More info, Navigate, URL, None). Navigate and URL show a path field.
-- **Threshold preview strip:** a thin bar from `min` to `max` painted with the three level bands in the panel colors. It updates as you type, so a wrong value is visible before saving.
+- **Threshold preview strip:** a thin bar from `min` to `max` (from 0 to `max(|min|, max)` on a two-sided meter, since its thresholds apply to the absolute value) painted with the three level bands in the panel colors. It updates as you type, so a wrong value is visible before saving.
 - **Validation:** thresholds that break `normal <= warning <= critical`, or a negative threshold on a two-sided meter, are marked with a short message.
 - **Reordering:** move meters with the up and down buttons, delete with the bin, add with **Add meter**.
 - Picking an entity fills the name and unit placeholders from its attributes. Bare entity-id entries are expanded to objects when edited in the UI.
