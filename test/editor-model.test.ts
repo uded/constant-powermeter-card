@@ -12,7 +12,6 @@ import {
   meterSchema,
   entitySelector,
   usedEntities,
-  meterExclusions,
   meterTitle,
   moveMeter,
   panelFormData,
@@ -364,7 +363,7 @@ describe('panel form', () => {
     expect(panelPatch({ total: 'sensor.t' })).toEqual({ total: 'sensor.t' });
   });
 
-  it('the total picker hides the meters, the meter pickers hide the total', () => {
+  it('the total picker hides the meters; the total may also be a meter', () => {
     const c: CardConfig = {
       type: 'x',
       total: 'sensor.t',
@@ -376,9 +375,8 @@ describe('panel form', () => {
     expect(panelSchema(c).find((s) => s.name === 'chart')?.selector).toMatchObject({
       select: { multiple: true },
     });
-    expect(meterExclusions(c, 0)).toEqual(['sensor.b', 'sensor.t']);
-    expect(meterExclusions(c)).toEqual(['sensor.a', 'sensor.b', 'sensor.t']);
-    expect(meterExclusions({ type: 'x', meters: ['sensor.a'] }, 0)).toEqual([]);
+    expect(usedEntities(c, 0)).toEqual(['sensor.b']);
+    expect(usedEntities(c)).toEqual(['sensor.a', 'sensor.b']);
   });
 
   it('warns on stacked + lines and on incompatible units', () => {

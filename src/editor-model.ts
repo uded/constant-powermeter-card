@@ -381,15 +381,6 @@ export function usedEntities(c: CardConfig, skip?: number): string[] {
     .filter((id): id is string => typeof id === 'string' && id !== '');
 }
 
-/**
- * meterExclusions is what a meter picker hides: the other meters (all of them for the add
- * picker, when `skip` is undefined) and the total entity.
- */
-export function meterExclusions(c: CardConfig, skip?: number): string[] {
-  const used = usedEntities(c, skip);
-  return c.total ? [...used, c.total] : used;
-}
-
 /** entitySelector picks a sensor, hiding the entities in `exclude`. */
 export function entitySelector(exclude: string[] = []): FormSchema['selector'] {
   const entity: Record<string, unknown> = { filter: { domain: 'sensor' } };

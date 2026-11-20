@@ -15,7 +15,7 @@ import {
   meterPatch,
   meterSchema,
   entitySelector,
-  meterExclusions,
+  usedEntities,
   meterTitle,
   moveMeter,
   PANEL_DEFAULTS,
@@ -43,7 +43,7 @@ const ICON_DELETE =
   'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z';
 
 const addSchema = (c: CardConfig): FormSchema[] => [
-  { name: 'entity', selector: entitySelector(meterExclusions(c)) },
+  { name: 'entity', selector: entitySelector(usedEntities(c)) },
 ];
 
 /**
@@ -303,7 +303,7 @@ export class ConstantPowermeterCardEditor extends LitElement {
           class="meter"
           .hass=${this.hass}
           .data=${data}
-          .schema=${meterSchema(String(data.tap_action), meterExclusions(c, i))}
+          .schema=${meterSchema(String(data.tap_action), usedEntities(c, i))}
           .error=${resolved ? meterErrors(resolved, obj) : {}}
           .computeLabel=${label}
           .computeHelper=${(s: FormSchema) => meterHelper(s.name, obj, resolved, attrs, i)}
