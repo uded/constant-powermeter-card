@@ -51,14 +51,55 @@ export function parseColor(css: string): Rgb | null {
   return null;
 }
 
-function resolveOne(host: Element, css: string, fallback: Rgb): Rgb {
-  let value = css.trim();
-  const v = VAR.exec(value);
-  if (v) value = getComputedStyle(host).getPropertyValue(v[1]).trim();
-  return parseColor(value) ?? fallback;
+/**
+ * The probe inherits this from its wrapper when a value is invalid at computed-value time
+ * (for example var(--missing)), so it can be told apart from a real color.
+ */
+const SENTINEL = 'rgba(1, 2, 3, 0.004)';
+const probes = new WeakMap<ParentNode, HTMLElement>();
+
+/** probeFor returns a hidden element under the host's shadow root (or the host) for color normalisation. */
+function probeFor(host: Element): HTMLElement {
+  const root: ParentNode = host.shadowRoot ?? host;
+  let probe = probes.get(root);
+  if (probe?.parentElement?.parentNode !== root) {
+    const wrap = document.createElement('span');
+    wrap.setAttribute('aria-hidden', 'true');
+    wrap.style.display = 'none';
+    wrap.style.color = SENTINEL;
+    probe = document.createElement('span');
+    wrap.append(probe);
+    root.append(wrap);
+    probes.set(root, probe);
+  }
+  return probe;
 }
 
-/** resolvePalette resolves configured colors, including theme variables, to RGB. */
+/** normalizeColor lets the browser compute any CSS color (named, hsl(), var(), ...) to rgb(). */
+function normalizeColor(host: Element, css: string): Rgb | null {
+  const probe = probeFor(host);
+  probe.style.color = '';
+  probe.style.color = css;
+  if (!probe.style.color) return null;
+  const computed = getComputedStyle(probe).color.trim();
+  const sentinel = getComputedStyle(probe.parentElement!).color.trim();
+  if (computed === '' || computed === sentinel) return null;
+  return parseColor(computed);
+}
+
+function resolveOne(host: Element, css: string, fallback: Rgb): Rgb {
+  const raw = css.trim();
+  let value = raw;
+  const v = VAR.exec(value);
+  if (v) value = getComputedStyle(host).getPropertyValue(v[1]).trim();
+  return parseColor(value) ?? normalizeColor(host, raw) ?? fallback;
+}
+
+/**
+ * resolvePalette resolves configured colors to RGB. Hex and rgb() values (directly or via a
+ * theme variable) are parsed as is; anything else is normalised by the browser through a
+ * hidden probe element under the host's shadow root. Unusable values get the level default.
+ */
 export function resolvePalette(host: Element, colors: ResolvedCard['colors']): Palette {
   return {
     normal: resolveOne(host, colors.normal, FALLBACK.normal),
