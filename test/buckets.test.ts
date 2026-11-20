@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketize } from '../src/buckets';
+import { bucketize, bucketizeMean } from '../src/buckets';
 
 const o = { start: 0, end: 100, count: 10, twoSided: false };
 
@@ -53,5 +53,49 @@ describe('bucketize', () => {
         { ...o, twoSided: true },
       )[0],
     ).toBe(-8);
+  });
+});
+
+describe('bucketizeMean', () => {
+  const m = { start: 0, end: 100, count: 10 };
+  it('weights values by how long they held within a bucket', () => {
+    // 0 until t=5, then 10: bucket [0,10) averages 5
+    expect(
+      bucketizeMean(
+        [
+          { t: -1, v: 0 },
+          { t: 5, v: 10 },
+        ],
+        m,
+      )[0],
+    ).toBe(5);
+  });
+  it('holds the last value across empty buckets', () => {
+    expect(bucketizeMean([{ t: -1, v: 3 }], m)).toEqual(Array(10).fill(3));
+  });
+  it('excludes unavailable time from the weighting', () => {
+    // 8 for 5 units, unavailable for 5 units -> mean 8, not 4
+    expect(
+      bucketizeMean(
+        [
+          { t: -1, v: 8 },
+          { t: 5, v: null },
+        ],
+        m,
+      )[0],
+    ).toBe(8);
+  });
+  it('returns null for buckets with no available time', () => {
+    const b = bucketizeMean(
+      [
+        { t: -1, v: 2 },
+        { t: 30, v: null },
+        { t: 60, v: 7 },
+      ],
+      m,
+    );
+    expect(b.slice(3, 6)).toEqual([null, null, null]);
+    expect(b[6]).toBe(7);
+    expect(bucketizeMean([{ t: 50, v: 1 }], m).slice(0, 5)).toEqual([null, null, null, null, null]);
   });
 });
