@@ -14,6 +14,18 @@ const MAX_PRECISION = 10;
 const CARD_TYPE = 'custom:constant-powermeter-card';
 /** The sparkline window is re-rendered at least this rarely, so a steady sensor still scrolls. */
 const MIN_TICK_MS = 15_000;
+/** How long the shown number takes to move from the old real value to the new one. */
+export const TWEEN_MS = 500;
+
+interface Tween {
+  from: number;
+  to: number;
+  start: number;
+}
+
+function reducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+}
 
 /** parseState returns the numeric value of an entity state, or null when it is not a number. */
 function parseState(s: string | undefined): number | null {
@@ -64,6 +76,10 @@ export class ConstantPowermeterCard extends LitElement {
   private tickTimer?: ReturnType<typeof setInterval>;
   private tickMs = 0;
   private readonly formats = new Map<string, Intl.NumberFormat>();
+  /** The number currently shown per entity, and its running transition to a new real value. */
+  private readonly shown = new Map<string, number>();
+  private readonly tweens = new Map<string, Tween>();
+  private frame?: number;
 
   constructor() {
     super();
@@ -113,6 +129,47 @@ export class ConstantPowermeterCard extends LitElement {
     this.history?.close();
     this.history = undefined;
     this.stopTick();
+    if (this.frame !== undefined) cancelAnimationFrame(this.frame);
+    this.frame = undefined;
+  }
+
+  /**
+   * shownValue eases the displayed number from the previous real value to the new
+   * real value over TWEEN_MS. It never invents values: it only moves between two
+   * readings HA reported. Missing data and reduced motion snap immediately.
+   */
+  private shownValue(entity: string, target: number | null, now: number): number | null {
+    if (target === null) {
+      this.shown.delete(entity);
+      this.tweens.delete(entity);
+      return null;
+    }
+    const prev = this.shown.get(entity);
+    if (prev === undefined || reducedMotion()) {
+      this.shown.set(entity, target);
+      this.tweens.delete(entity);
+      return target;
+    }
+    let t = this.tweens.get(entity);
+    if (!t || t.to !== target) {
+      if (!t && prev === target) return target;
+      t = { from: prev, to: target, start: now };
+      this.tweens.set(entity, t);
+    }
+    const p = Math.min(1, (now - t.start) / TWEEN_MS);
+    const v = t.from + (t.to - t.from) * (1 - (1 - p) ** 3);
+    this.shown.set(entity, v);
+    if (p >= 1) this.tweens.delete(entity);
+    return v;
+  }
+
+  protected updated(): void {
+    // Re-render on the next frame only while a number is still moving.
+    if (this.tweens.size === 0 || this.frame !== undefined || !this.isConnected) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = undefined;
+      this.requestUpdate();
+    });
   }
 
   /**
@@ -213,6 +270,7 @@ export class ConstantPowermeterCard extends LitElement {
   ): TemplateResult {
     const st = this.hass!.states[m.entity];
     const value = parseState(st?.state);
+    const shown = this.shownValue(m.entity, value, now);
     const name = m.name ?? st?.attributes.friendly_name ?? m.entity;
     const unit = m.unit ?? st?.attributes.unit_of_measurement ?? '';
     const precision = clampPrecision(
@@ -238,7 +296,7 @@ export class ConstantPowermeterCard extends LitElement {
             }
           </span>
           <span class="value"
-            >${value === null ? '—' : this.format(value, precision)}${
+            >${shown === null ? '—' : this.format(shown, precision)}${
               value !== null && unit ? html`<span class="unit">${unit}</span>` : nothing
             }</span
           >
@@ -369,8 +427,8 @@ export class ConstantPowermeterCard extends LitElement {
       bottom: 0;
       border-radius: 3px;
       transition:
-        width 300ms ease,
-        left 300ms ease;
+        width 500ms cubic-bezier(0.33, 1, 0.68, 1),
+        left 500ms cubic-bezier(0.33, 1, 0.68, 1);
     }
     .zero {
       position: absolute;

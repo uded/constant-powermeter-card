@@ -201,7 +201,77 @@ describe('ConstantPowermeterCard', () => {
     el.hass = { ...el.hass, states: { ...el.hass.states, 'sensor.a': entity('sensor.a', '5') } };
     await el.updateComplete;
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(rows(el)[0].querySelector('.value')!.textContent).toContain('5');
+  });
+
+  describe('value transitions', () => {
+    const FAKE = [
+      'setTimeout',
+      'clearTimeout',
+      'setInterval',
+      'clearInterval',
+      'Date',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+    ] as const;
+    const shown = (el: HTMLElement) =>
+      Number(
+        rows(el)[0]
+          .querySelector('.value')!
+          .textContent!.replace(/[^\d.-]/g, ''),
+      );
+    const set = async (el: ConstantPowermeterCard, state: string) => {
+      el.hass = { ...el.hass!, states: { 'sensor.a': entity('sensor.a', state) } };
+      await el.updateComplete;
+    };
+    const step = async (el: ConstantPowermeterCard, ms: number) => {
+      vi.advanceTimersByTime(ms);
+      await el.updateComplete;
+    };
+
+    it('eases the number between two real readings and lands on the new one', async () => {
+      vi.useFakeTimers({ toFake: [...FAKE] });
+      const el = await mount(
+        { meters: ['sensor.a'] },
+        makeHass({ 'sensor.a': entity('sensor.a', '100') }),
+      );
+      expect(shown(el)).toBe(100);
+
+      await set(el, '200');
+      expect(shown(el)).toBe(100);
+      await step(el, 250);
+      expect(shown(el)).toBeGreaterThan(100);
+      expect(shown(el)).toBeLessThan(200);
+      await step(el, 300);
+      expect(shown(el)).toBe(200);
+
+      // Nothing keeps re-rendering once the number has arrived.
+      const spy = vi.spyOn(el as unknown as { render: () => unknown }, 'render');
+      await step(el, 1000);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('snaps immediately under prefers-reduced-motion', async () => {
+      vi.useFakeTimers({ toFake: [...FAKE] });
+      vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList);
+      const el = await mount(
+        { meters: ['sensor.a'] },
+        makeHass({ 'sensor.a': entity('sensor.a', '100') }),
+      );
+      await set(el, '200');
+      expect(shown(el)).toBe(200);
+    });
+
+    it('shows — at once when the sensor becomes unavailable, then snaps when it returns', async () => {
+      vi.useFakeTimers({ toFake: [...FAKE] });
+      const el = await mount(
+        { meters: ['sensor.a'] },
+        makeHass({ 'sensor.a': entity('sensor.a', '100') }),
+      );
+      await set(el, 'unavailable');
+      expect(rows(el)[0].querySelector('.value')!.textContent).toContain('—');
+      await set(el, '300');
+      expect(shown(el)).toBe(300);
+    });
   });
 
   it('re-resolves colors when hass.themes changes', async () => {
