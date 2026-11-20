@@ -66,13 +66,13 @@ meters:
     display: [bar] # optional override of the panel default
     tap_action:
       action: more-info # default
-  - entity: sensor.grid_power
-    name: Grid
+  - entity: sensor.battery_power # charge positive, discharge negative
+    name: Battery
     min: -3000 # min below 0 makes the meter two-sided
-    max: 7000
+    max: 3000
     normal: 1000 # thresholds apply to the absolute value
-    warning: 3000
-    critical: 5000
+    warning: 2000
+    critical: 2800
     tap_action:
       action: navigate
       navigation_path: /energy
@@ -165,9 +165,9 @@ meters:
     color: '#4e79a7'
   - entity: sensor.ev_charger_power
   - entity: sensor.heat_pump_power
-  - entity: sensor.grid_power
+  - entity: sensor.battery_power # charge positive, discharge negative
     min: -3000 # two-sided meters work in a stack too
-    max: 7000
+    max: 3000
 ```
 
 Chart types:
@@ -199,7 +199,7 @@ Set `total` to an entity that reports your whole-house load. The difference betw
 
 Use a whole-house **load** sensor for `total`, not grid import. When you have solar or a battery, grid import is smaller than what the house actually uses, so Untracked would be wrong. Negative meters (export, discharge) are ignored for Untracked and for shares: Untracked is `total` minus the sum of the positive meters.
 
-`total` does not add a row. List it under `meters` as well if you want one. Without `chart` it has no effect. If the total is unavailable, the donut drops the Untracked slice and shows the sum of the other slices until it reports again.
+`total` does not add a row. You can list it as a meter to see its own row; it is then left out of the chart and shares. Without `chart` it has no effect. If the total is unavailable, the donut drops the Untracked slice and shows the sum of the other slices until it reports again.
 
 #### Colors
 
