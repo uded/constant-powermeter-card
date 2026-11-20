@@ -249,6 +249,22 @@ describe('ConstantPowermeterCard', () => {
       await el.updateComplete;
     };
 
+    it('stops re-rendering when a new config arrives mid-transition', async () => {
+      vi.useFakeTimers({ toFake: [...FAKE] });
+      const el = await mount(
+        { chart: 'donut', meters: ['sensor.a'] },
+        makeHass({ 'sensor.a': entity('sensor.a', '100') }),
+      );
+      await set(el, '200');
+      // Mid-transition, the editor swaps the meter, so sensor.a is no longer shown.
+      el.setConfig({ type: 'custom:constant-powermeter-card', meters: ['sensor.b'] });
+      await el.updateComplete;
+      await step(el, 50); // the frame already scheduled before the change may still run once
+      const spy = vi.spyOn(el as unknown as { render: () => unknown }, 'render');
+      await step(el, 2000);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
     it('eases the number between two real readings and lands on the new one', async () => {
       vi.useFakeTimers({ toFake: [...FAKE] });
       const el = await mount(

@@ -136,6 +136,9 @@ export class ConstantPowermeterCard extends LitElement {
   setConfig(raw: unknown): void {
     this.config = normalizeConfig(raw);
     this.palette = undefined;
+    // A new config may stop showing an entity mid-transition; a leftover tween would
+    // keep requesting frames forever, so drop them all and let values snap.
+    this.tweens.clear();
     this.syncHistory();
     this.syncTick();
   }
