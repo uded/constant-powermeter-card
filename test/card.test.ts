@@ -677,6 +677,89 @@ describe('combined charts', () => {
     expect(edges[1].getAttribute('style')).toContain('var(--disabled-color');
   });
 
+  describe('tooltips', () => {
+    const hass = (a = '500') =>
+      makeHass({
+        'sensor.a': entity('sensor.a', a, { friendly_name: 'Kitchen', unit_of_measurement: 'W' }),
+        'sensor.t': entity('sensor.t', '2000', {
+          friendly_name: 'House',
+          unit_of_measurement: 'W',
+        }),
+      });
+    const cfg = (chart: unknown) => ({ chart, total: 'sensor.t', meters: ['sensor.a'] });
+    // happy-dom has no layout, so give the plot a 200 px width at x = 0.
+    const hover = async (el: ConstantPowermeterCard, x: number) => {
+      const svg = el.shadowRoot!.querySelector('.time svg') as SVGElement;
+      svg.getBoundingClientRect = () => ({ left: 0, width: 200 }) as DOMRect;
+      const time = el.shadowRoot!.querySelector('.time')!;
+      time.dispatchEvent(new MouseEvent('pointermove', { clientX: x, bubbles: true }));
+      await el.updateComplete;
+    };
+    const tipRows = (el: HTMLElement) =>
+      [...el.shadowRoot!.querySelectorAll('.time .tip-row')].map((r) => [
+        r.querySelector('.tip-name')!.textContent,
+        r.querySelector('.tip-value')!.textContent,
+      ]);
+
+    it('shows every series at the hovered step, live at the right edge', async () => {
+      const el = await mount(cfg('stacked'), hass());
+      expect(el.shadowRoot!.querySelector('.time .tip')).toBeNull();
+      await hover(el, 200);
+      expect(el.shadowRoot!.querySelector('.time .tip-title')!.textContent).toBe('Now');
+      expect(tipRows(el)).toEqual([
+        ['Kitchen', '500 W'],
+        ['Untracked', '1,500 W'],
+        ['House', '2,000 W'],
+      ]);
+      expect(el.shadowRoot!.querySelector('.time .guide')!.getAttribute('style')).toContain(
+        'left: 100%',
+      );
+    });
+
+    it('shows a dash for a step without readings, and a clock time', async () => {
+      const el = await mount(cfg('lines'), hass());
+      await hover(el, 0);
+      expect(el.shadowRoot!.querySelector('.time .tip-title')!.textContent).not.toBe('Now');
+      expect(tipRows(el).map(([, v]) => v)).toEqual(['—', '—', '—']);
+    });
+
+    it('follows live updates at the same step, and clears on leave or new config', async () => {
+      const el = await mount(cfg('stacked'), hass());
+      await hover(el, 200);
+      el.hass = hass('800');
+      await el.updateComplete;
+      await new Promise((r) => setTimeout(r, 600)); // let the value tween settle
+      await el.updateComplete;
+      expect(tipRows(el)[0]).toEqual(['Kitchen', '800 W']);
+      el.shadowRoot!.querySelector('.time')!.dispatchEvent(new MouseEvent('pointerleave'));
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector('.time .tip')).toBeNull();
+      await hover(el, 200);
+      el.setConfig({ type: 'x', ...cfg('stacked') });
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector('.time .tip')).toBeNull();
+    });
+
+    it('shows a donut slice name, value and share', async () => {
+      const el = await mount(cfg('donut'), hass());
+      const slice = el.shadowRoot!.querySelector('.donut .slice[data-key="0"]')!;
+      slice.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }));
+      await el.updateComplete;
+      const tip = el.shadowRoot!.querySelector('.donut .tip.slice')!;
+      expect(tip.querySelector('.tip-name')!.textContent).toBe('Kitchen');
+      expect(tip.querySelector('.tip-value')!.textContent).toBe('500 W');
+      expect(tip.querySelector('.tip-share')!.textContent).toBe('25%');
+      el.shadowRoot!.querySelector('.donut')!.dispatchEvent(new MouseEvent('pointerleave'));
+      await el.updateComplete;
+      expect(el.shadowRoot!.querySelector('.donut .tip')).toBeNull();
+    });
+
+    it('lets vertical swipes scroll the page', () => {
+      const css = (ConstantPowermeterCard.styles as { cssText: string }).cssText;
+      expect(css).toMatch(/\.time\s*\{[^}]*touch-action:\s*pan-y/);
+    });
+  });
+
   describe('a total that is also listed as a meter', () => {
     const hass = () =>
       makeHass({

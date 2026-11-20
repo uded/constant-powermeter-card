@@ -123,7 +123,7 @@ export function renderDonut(slices: Slice[], centerText: string, label?: string)
           : slices.map((s) =>
               slicePaths(s, gap).map(
                 (d) =>
-                  svg`<path class="slice" d=${d} fill="none" style="stroke: ${s.color}" stroke-width=${RING.w}></path>`,
+                  svg`<path class="slice" data-key=${s.key} d=${d} fill="none" style="stroke: ${s.color}" stroke-width=${RING.w}></path>`,
               ),
             )
       }

@@ -6,3 +6,5 @@ CLAUDE.md
 .claude/
 .serena/
 *.profraw
+.gitnexus/
+AGENTS.md

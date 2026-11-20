@@ -17,6 +17,7 @@ import { StreamHistorySource } from './history';
 import { levelColor, resolvePalette, type Palette } from './levels';
 import { isPowerUnit, seriesColor, toWatts } from './series';
 import { renderSparkline } from './sparkline';
+import { renderSliceTip, renderTimeTip, stepAt, stepEnd, stepLeft, type TipRow } from './tooltip';
 import { UNTRACKED_COLOR, UNTRACKED_KEY, UNTRACKED_NAME, type Series } from './types/chart';
 import type { HomeAssistant } from './types/ha';
 
@@ -48,6 +49,12 @@ const CARD_TYPE = 'custom:constant-powermeter-card';
 const MIN_TICK_MS = 15_000;
 /** The combined charts are always drawn in watts; non-power meters are left out of them. */
 const CHART_UNIT = { unit: 'W', precision: 0 };
+/** After a finger lifts, the tooltip stays this long so it can be read. */
+const TOUCH_TIP_MS = 3_000;
+
+/** Hover is what the pointer is over: a time chart step or a donut slice. */
+type Hover = { kind: 'time'; step: number } | { kind: 'slice'; key: string };
+
 /** How long the shown number takes to move from the old real value to the new one. */
 export const TWEEN_MS = 500;
 
@@ -104,12 +111,16 @@ export class ConstantPowermeterCard extends LitElement {
     hass: { attribute: false },
     preview: { type: Boolean },
     config: { state: true },
+    hover: { state: true },
   };
 
   declare hass?: HomeAssistant;
   /** Set by HA on cards shown in the edit dialog preview; disables tap actions. */
   declare preview: boolean;
   declare config?: ResolvedCard;
+  /** hover is the chart step or donut slice under the pointer, for the tooltip. */
+  declare hover?: Hover;
+  private hoverTimer?: ReturnType<typeof setTimeout>;
 
   private palette?: Palette;
   private history?: StreamHistorySource;
@@ -153,6 +164,8 @@ export class ConstantPowermeterCard extends LitElement {
     // keep requesting frames forever, so drop them all and let values snap.
     this.tweens.clear();
     this.bucketCache.clear();
+    // A step or slice key from the old config may not exist in the new one.
+    this.clearHover();
     this.syncHistory();
     this.syncTick();
   }
@@ -192,6 +205,7 @@ export class ConstantPowermeterCard extends LitElement {
     this.stopTick();
     if (this.frame !== undefined) cancelAnimationFrame(this.frame);
     this.frame = undefined;
+    this.clearHover();
   }
 
   /**
@@ -319,6 +333,57 @@ export class ConstantPowermeterCard extends LitElement {
     if ((ev.key !== 'Enter' && ev.key !== ' ') || ev.repeat) return;
     ev.preventDefault();
     this.act(ev, m);
+  }
+
+  private clearHover(): void {
+    clearTimeout(this.hoverTimer);
+    this.hoverTimer = undefined;
+    this.hover = undefined;
+  }
+
+  private setHover(next: Hover): void {
+    clearTimeout(this.hoverTimer);
+    this.hoverTimer = undefined;
+    const h = this.hover;
+    const same =
+      h?.kind === next.kind &&
+      (h.kind === 'time' ? h.step === (next as typeof h).step : h.key === (next as typeof h).key);
+    if (!same) this.hover = next;
+  }
+
+  /**
+   * leaveHover hides the tooltip when a mouse leaves. A finger leaves on every lift,
+   * so after a touch the tooltip stays a few seconds instead, long enough to read.
+   */
+  private leaveHover = (ev: PointerEvent): void => {
+    if (ev.pointerType !== 'touch') {
+      this.clearHover();
+      return;
+    }
+    clearTimeout(this.hoverTimer);
+    this.hoverTimer = setTimeout(() => this.clearHover(), TOUCH_TIP_MS);
+  };
+
+  private onTimePointer = (ev: PointerEvent): void => {
+    const svg = (ev.currentTarget as HTMLElement).querySelector('svg');
+    if (!svg) return;
+    const r = svg.getBoundingClientRect();
+    this.setHover({ kind: 'time', step: stepAt(ev.clientX - r.left, r.width, BUCKETS) });
+  };
+
+  private onSlicePointer = (ev: PointerEvent): void => {
+    const key = (ev.target as Element).getAttribute?.('data-key');
+    if (key) this.setHover({ kind: 'slice', key });
+  };
+
+  /** stepTitle names a chart step: `Now` for the live last step, else its clock time. */
+  private stepTitle(cfg: ResolvedCard, now: number, step: number): string {
+    if (step === BUCKETS - 1) return 'Now';
+    const at = stepEnd(now, cfg.hours, BUCKETS, step);
+    return new Intl.DateTimeFormat(this.hass?.locale?.language, {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(at);
   }
 
   protected render(): TemplateResult | typeof nothing {
@@ -520,8 +585,40 @@ export class ConstantPowermeterCard extends LitElement {
     const hasData = [...series.map((s) => s.buckets), totalBuckets ?? []].some((b) =>
       b.some((v) => v !== null),
     );
+    const h = this.hover;
+    let tip: TemplateResult | typeof nothing = nothing;
+    if (h?.kind === 'time') {
+      // The same bucket values the chart draws at this step, never interpolated.
+      const rows: TipRow[] = series.map((s) => ({ ...s, value: s.buckets[h.step] ?? null }));
+      if (total !== undefined && totalBuckets) {
+        const t = totalBuckets[h.step] ?? null;
+        rows.push({
+          key: UNTRACKED_KEY,
+          name: UNTRACKED_NAME,
+          color: UNTRACKED_COLOR,
+          value: t === null ? null : (untracked?.[h.step] ?? null),
+        });
+        rows.push({
+          key: 'total',
+          name: this.hass!.states[total]?.attributes.friendly_name ?? 'Total',
+          color: 'transparent',
+          value: t,
+        });
+      }
+      tip = renderTimeTip(
+        this.stepTitle(cfg, now, h.step),
+        rows,
+        (v) => this.formatWithUnit(v, CHART_UNIT),
+        stepLeft(h.step, BUCKETS),
+      );
+    }
     return html`
-      <div class="time ${kind}">
+      <div
+        class="time ${kind}"
+        @pointermove=${this.onTimePointer}
+        @pointerdown=${this.onTimePointer}
+        @pointerleave=${this.leaveHover}
+      >
         ${drawing}
         ${
           hasData
@@ -529,6 +626,7 @@ export class ConstantPowermeterCard extends LitElement {
             : nothing
         }
         <span class="label bottom">${windowLabel(cfg.hours)}</span>
+        ${tip}
       </div>
     `;
   }
@@ -555,7 +653,25 @@ export class ConstantPowermeterCard extends LitElement {
     const empty = slices.length === 0 || center === null;
     const text = empty ? '—' : this.formatWithUnit(center, CHART_UNIT);
     const label = `Power split, ${empty ? 'no data' : text}`;
-    return html`<div class="donut">${renderDonut(slices, text, label)}</div>`;
+    const h = this.hover;
+    const hit = h?.kind === 'slice' ? slices.find((s) => s.key === h.key) : undefined;
+    const tip =
+      hit && center !== null && center > 0
+        ? renderSliceTip(
+            hit.name,
+            hit.color,
+            this.formatWithUnit(hit.value, CHART_UNIT),
+            `${Math.round((hit.value / center) * 100)}%`,
+          )
+        : nothing;
+    return html`<div
+      class="donut"
+      @pointerover=${this.onSlicePointer}
+      @pointerdown=${this.onSlicePointer}
+      @pointerleave=${this.leaveHover}
+    >
+      ${renderDonut(slices, text, label)}${tip}
+    </div>`;
   }
 
   private renderRow(
@@ -765,6 +881,8 @@ export class ConstantPowermeterCard extends LitElement {
       flex: 1 1 auto;
       min-width: 0;
       color: var(--secondary-text-color);
+      /* Horizontal drags move the tooltip; vertical swipes still scroll the dashboard. */
+      touch-action: pan-y;
     }
     .time svg {
       display: block;
@@ -801,6 +919,68 @@ export class ConstantPowermeterCard extends LitElement {
     .donut .center {
       font-size: 13px;
       font-variant-numeric: tabular-nums;
+    }
+    .donut {
+      position: relative;
+    }
+    /* Tooltips: a guide line over the time chart and a small box, both ignoring the
+       pointer so hovering stays smooth. */
+    .guide {
+      position: absolute;
+      top: 14px;
+      bottom: 14px;
+      width: 1px;
+      margin-left: -0.5px;
+      background: var(--secondary-text-color);
+      opacity: 0.6;
+      pointer-events: none;
+    }
+    .tip {
+      position: absolute;
+      top: 14px;
+      z-index: 1;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--card-background-color, var(--ha-card-background, #fff));
+      color: var(--primary-text-color);
+      box-shadow: var(--ha-card-box-shadow, 0 2px 8px rgba(0, 0, 0, 0.25));
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .tip.right {
+      transform: translateX(8px);
+    }
+    .tip.left {
+      transform: translateX(calc(-100% - 8px));
+    }
+    /* Right-aligned under the ring: the donut sits at the card's right edge. */
+    .tip.slice {
+      top: auto;
+      bottom: -4px;
+      right: 0;
+      transform: translateY(100%);
+    }
+    .tip-title {
+      color: var(--secondary-text-color);
+      margin-bottom: 2px;
+    }
+    .tip-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tip-name {
+      flex: 1 1 auto;
+    }
+    .tip-value,
+    .tip-share {
+      font-variant-numeric: tabular-nums;
+      margin-left: 8px;
+    }
+    .tip-share {
+      color: var(--secondary-text-color);
     }
     /* The query measures the .chart content box, 32 px narrower than the card (16 px
        padding each side), so 328 px here wraps the donut at a 360 px wide card. */
