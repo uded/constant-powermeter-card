@@ -496,9 +496,9 @@ export function resolveMeterAt(c: CardConfig, i: number): ResolvedMeter | undefi
 
 /**
  * panelSchema is the panel form (colors have their own forms with swatches). The total
- * picker hides the meters' entities.
+ * picker hides no entity: the total may also be listed as a meter to give it a row.
  */
-export function panelSchema(c: CardConfig): FormSchema[] {
+export function panelSchema(): FormSchema[] {
   return [
     ...PANEL_BASE_SCHEMA,
     {
@@ -516,7 +516,7 @@ export function panelSchema(c: CardConfig): FormSchema[] {
       },
     },
     { name: 'rows', selector: { boolean: {} } },
-    { name: 'total', selector: entitySelector(usedEntities(c)) },
+    { name: 'total', selector: entitySelector() },
   ];
 }
 

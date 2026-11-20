@@ -216,7 +216,7 @@ export class ConstantPowermeterCardEditor extends LitElement {
           class="panel"
           .hass=${this.hass}
           .data=${panelFormData(c)}
-          .schema=${panelSchema(c)}
+          .schema=${panelSchema()}
           .computeLabel=${label}
           .computeHelper=${(s: FormSchema) =>
             s.name === 'hours' ? `Default: ${PANEL_DEFAULTS.hours}` : undefined}

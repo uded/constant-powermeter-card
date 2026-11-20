@@ -363,16 +363,16 @@ describe('panel form', () => {
     expect(panelPatch({ total: 'sensor.t' })).toEqual({ total: 'sensor.t' });
   });
 
-  it('the total picker hides the meters; the total may also be a meter', () => {
+  it('the total picker hides no meter, so a meter can also be the total', () => {
     const c: CardConfig = {
       type: 'x',
       total: 'sensor.t',
       meters: ['sensor.a', { entity: 'sensor.b' }],
     };
-    expect(panelSchema(c).find((s) => s.name === 'total')?.selector).toEqual({
-      entity: { filter: { domain: 'sensor' }, exclude_entities: ['sensor.a', 'sensor.b'] },
+    expect(panelSchema().find((s) => s.name === 'total')?.selector).toEqual({
+      entity: { filter: { domain: 'sensor' } },
     });
-    expect(panelSchema(c).find((s) => s.name === 'chart')?.selector).toMatchObject({
+    expect(panelSchema().find((s) => s.name === 'chart')?.selector).toMatchObject({
       select: { multiple: true },
     });
     expect(usedEntities(c, 0)).toEqual(['sensor.b']);

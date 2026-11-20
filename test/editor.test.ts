@@ -213,7 +213,7 @@ describe('ConstantPowermeterCardEditor', () => {
     expect(q<HTMLElement>(el, '.meter-swatch').getAttribute('style')).toContain('#123456');
   });
 
-  it('lets the total be picked as a meter, but not a meter as the total', async () => {
+  it('lets the total be picked as a meter, and a meter as the total', async () => {
     const { el } = await mount({ ...base, total: 'sensor.t' });
     const entity = q(el, 'ha-form.meter').schema[0] as { selector?: unknown };
     expect(entity.selector).toEqual({ entity: { filter: { domain: 'sensor' } } });
@@ -224,9 +224,7 @@ describe('ConstantPowermeterCardEditor', () => {
     const total = q(el, 'ha-form.panel').schema.find((s) => s.name === 'total') as {
       selector?: unknown;
     };
-    expect(total.selector).toEqual({
-      entity: { filter: { domain: 'sensor' }, exclude_entities: ['sensor.a'] },
-    });
+    expect(total.selector).toEqual({ entity: { filter: { domain: 'sensor' } } });
   });
 
   it('writes and clears a panel color', async () => {
