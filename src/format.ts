@@ -2,6 +2,24 @@
 export interface HaLocale {
   language: string;
   number_format?: string;
+  time_format?: string;
+}
+
+/**
+ * hour12 maps HA's Time format profile setting to Intl's hour12: `12` and `24` force
+ * the clock, `system` follows the browser, and `language` (or nothing) follows the language.
+ */
+export function hour12(locale?: HaLocale): boolean | undefined {
+  switch (locale?.time_format) {
+    case '12':
+      return true;
+    case '24':
+      return false;
+    case 'system':
+      return new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).resolvedOptions().hour12;
+    default:
+      return undefined;
+  }
 }
 
 /**

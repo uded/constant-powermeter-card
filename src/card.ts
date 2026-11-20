@@ -11,7 +11,7 @@ import {
   untrackedBuckets,
 } from './combine';
 import { normalizeConfig, type CardConfig, type ResolvedCard, type ResolvedMeter } from './config';
-import { numberFormat } from './format';
+import { hour12, numberFormat } from './format';
 import { barGeometry, sparklineRange } from './geometry';
 import { StreamHistorySource } from './history';
 import { levelColor, resolvePalette, type Palette } from './levels';
@@ -383,6 +383,7 @@ export class ConstantPowermeterCard extends LitElement {
     return new Intl.DateTimeFormat(this.hass?.locale?.language, {
       hour: '2-digit',
       minute: '2-digit',
+      hour12: hour12(this.hass?.locale),
     }).format(at);
   }
 
@@ -633,37 +634,43 @@ export class ConstantPowermeterCard extends LitElement {
 
   /** renderDonutChart splits the live readings, easing between real values like the rows. */
   private renderDonutChart(cfg: ResolvedCard, now: number): TemplateResult {
-    const items = this.chartMeters(cfg).map(({ m, i }) => {
-      const unit = this.unitOf(m.entity, m);
-      const v = this.shownValue(m.entity, parseState(this.hass!.states[m.entity]?.state), now);
-      return {
-        key: String(i),
-        name: this.meterName(m),
-        color: seriesColor(i, m.color),
-        value: v === null ? null : toWatts(v, unit),
-      };
-    });
-    const total = this.chartTotal(cfg);
-    let totalW: number | null = null;
-    if (total !== undefined) {
-      const v = this.shownValue(total, parseState(this.hass!.states[total]?.state), now);
-      totalW = v === null ? null : toWatts(v, this.unitOf(total));
-    }
-    const { slices, center } = donutSlices(items, totalW);
+    // The ring eases between readings; the tooltip uses the real readings only.
+    const split = (read: (entity: string, raw: number | null) => number | null) => {
+      const items = this.chartMeters(cfg).map(({ m, i }) => {
+        const v = read(m.entity, parseState(this.hass!.states[m.entity]?.state));
+        return {
+          key: String(i),
+          name: this.meterName(m),
+          color: seriesColor(i, m.color),
+          value: v === null ? null : toWatts(v, this.unitOf(m.entity, m)),
+        };
+      });
+      const total = this.chartTotal(cfg);
+      let totalW: number | null = null;
+      if (total !== undefined) {
+        const v = read(total, parseState(this.hass!.states[total]?.state));
+        totalW = v === null ? null : toWatts(v, this.unitOf(total));
+      }
+      return donutSlices(items, totalW);
+    };
+    const { slices, center } = split((entity, raw) => this.shownValue(entity, raw, now));
     const empty = slices.length === 0 || center === null;
     const text = empty ? '—' : this.formatWithUnit(center, CHART_UNIT);
     const label = `Power split, ${empty ? 'no data' : text}`;
     const h = this.hover;
-    const hit = h?.kind === 'slice' ? slices.find((s) => s.key === h.key) : undefined;
-    const tip =
-      hit && center !== null && center > 0
-        ? renderSliceTip(
-            hit.name,
-            hit.color,
-            this.formatWithUnit(hit.value, CHART_UNIT),
-            `${Math.round((hit.value / center) * 100)}%`,
-          )
-        : nothing;
+    let tip: TemplateResult | typeof nothing = nothing;
+    if (h?.kind === 'slice') {
+      const real = split((_, raw) => raw);
+      const hit = real.slices.find((s) => s.key === h.key);
+      if (hit && real.center !== null && real.center > 0) {
+        tip = renderSliceTip(
+          hit.name,
+          hit.color,
+          this.formatWithUnit(hit.value, CHART_UNIT),
+          `${Math.round((hit.value / real.center) * 100)}%`,
+        );
+      }
+    }
     return html`<div
       class="donut"
       @pointerover=${this.onSlicePointer}

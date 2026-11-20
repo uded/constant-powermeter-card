@@ -6,7 +6,7 @@ All notable changes to this card. Each release on GitHub uses its section from t
 
 ### Added
 
-- Tooltips on the combined charts. Hover over the stacked or lines chart, or touch and drag on it, to see a guide line and a box with that moment's time and every meter's value, plus Untracked and the total. The values are exactly what the chart draws there (the average for stacked, the peak for lines); a missing reading shows `—`, and the live last point is labeled `Now`.
+- Tooltips on the combined charts. Hover over the stacked or lines chart, or touch and drag on it, to see a guide line and a box with that moment's time and every meter's value, plus Untracked and the total. The values are exactly what the chart draws there (the average for stacked, the peak for lines); a missing reading shows `—`, and the live last point is labeled `Now`. The time follows the 12 or 24 hour clock set in your Home Assistant profile.
 - Hover or tap a donut slice to see its name, value and share.
 - Handy with `rows: false`: the chart alone now tells you the numbers. On touch, the box stays 3 seconds after you lift your finger, and vertical swipes still scroll the dashboard.
 

@@ -754,6 +754,69 @@ describe('combined charts', () => {
       expect(el.shadowRoot!.querySelector('.donut .tip')).toBeNull();
     });
 
+    it('shows the real slice reading while the ring is still easing', async () => {
+      const el = await mount(cfg('donut'), hass());
+      const over = async () => {
+        el.shadowRoot!.querySelector('.donut .slice[data-key="0"]')!.dispatchEvent(
+          new MouseEvent('pointerover', { bubbles: true }),
+        );
+        await el.updateComplete;
+      };
+      await over();
+      el.hass = hass('800');
+      await el.updateComplete;
+      await over();
+      // No waiting: the ring is mid-tween, the box must already show the new reading.
+      const tip = el.shadowRoot!.querySelector('.donut .tip.slice')!;
+      expect(tip.querySelector('.tip-value')!.textContent).toBe('800 W');
+      expect(tip.querySelector('.tip-share')!.textContent).toBe('40%');
+    });
+
+    it('uses the 12 or 24 hour clock set in Home Assistant', async () => {
+      const h = hass();
+      const el = await mount(cfg('lines'), {
+        ...h,
+        locale: { ...h.locale, language: 'en', time_format: '24' },
+      } as never);
+      await hover(el, 0);
+      expect(el.shadowRoot!.querySelector('.time .tip-title')!.textContent).not.toMatch(/AM|PM/);
+    });
+
+    describe('on touch', () => {
+      const touch = (el: ConstantPowermeterCard, type: string) =>
+        el
+          .shadowRoot!.querySelector('.time')!
+          .dispatchEvent(
+            Object.assign(new MouseEvent(type, { clientX: 200 }), { pointerType: 'touch' }),
+          );
+      const tip = (el: HTMLElement) => el.shadowRoot!.querySelector('.time .tip');
+
+      it('keeps the box 3 s after the finger lifts, and a new touch restarts it', async () => {
+        const el = await mount(cfg('stacked'), hass());
+        vi.useFakeTimers();
+        await hover(el, 200);
+        touch(el, 'pointerleave');
+        await vi.advanceTimersByTimeAsync(2_900);
+        expect(tip(el)).not.toBeNull();
+        touch(el, 'pointerdown');
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(tip(el)).not.toBeNull();
+        touch(el, 'pointerleave');
+        await vi.advanceTimersByTimeAsync(3_100);
+        await el.updateComplete;
+        expect(tip(el)).toBeNull();
+      });
+
+      it('drops a pending timer when the card is removed', async () => {
+        const el = await mount(cfg('stacked'), hass());
+        vi.useFakeTimers();
+        await hover(el, 200);
+        touch(el, 'pointerleave');
+        el.remove();
+        expect(vi.getTimerCount()).toBe(0);
+      });
+    });
+
     it('lets vertical swipes scroll the page', () => {
       const css = (ConstantPowermeterCard.styles as { cssText: string }).cssText;
       expect(css).toMatch(/\.time\s*\{[^}]*touch-action:\s*pan-y/);

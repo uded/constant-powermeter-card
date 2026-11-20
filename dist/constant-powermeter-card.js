@@ -941,6 +941,14 @@ function kt(e) {
 }
 // src/format.ts
 function At(e) {
+	switch (e?.time_format) {
+		case "12": return !0;
+		case "24": return !1;
+		case "system": return new Intl.DateTimeFormat(void 0, { hour: "numeric" }).resolvedOptions().hour12;
+		default: return;
+	}
+}
+function jt(e) {
 	switch (e?.number_format) {
 		case "comma_decimal": return {
 			locales: ["en-US", "en"],
@@ -981,16 +989,16 @@ function At(e) {
 	}
 }
 // src/history.ts
-var jt = 1e3, Mt = 6e4, Nt = 36e5, Pt = 3;
-function Ft(e) {
-	return e === Pt || typeof e == "object" && !!e && e.code === Pt;
-}
+var Mt = 1e3, Nt = 6e4, Pt = 36e5, Ft = 3;
 function It(e) {
+	return e === Ft || typeof e == "object" && !!e && e.code === Ft;
+}
+function Lt(e) {
 	if (e.trim() === "") return null;
 	let t = Number(e);
 	return Number.isFinite(t) ? t : null;
 }
-function Lt(e, t) {
+function Rt(e, t) {
 	let n = 0, r = e.length;
 	for (; n < r;) {
 		let i = n + r >>> 1;
@@ -998,29 +1006,29 @@ function Lt(e, t) {
 	}
 	return n;
 }
-function Rt(e, t) {
-	let n = Lt(e, t.t);
+function zt(e, t) {
+	let n = Rt(e, t.t);
 	n < e.length && e[n].t === t.t ? e[n] = t : e.splice(n, 0, t);
 }
-function zt(e, t) {
+function Bt(e, t) {
 	if (t.states) for (let [n, r] of Object.entries(t.states)) {
 		let t = e.get(n);
 		for (let i of r) {
 			let r = i.lu ?? i.lc;
-			r !== void 0 && (t || (t = [], e.set(n, t)), Rt(t, {
+			r !== void 0 && (t || (t = [], e.set(n, t)), zt(t, {
 				t: r * 1e3,
-				v: It(i.s)
+				v: Lt(i.s)
 			}));
 		}
 	}
 }
-function Bt(e, t) {
+function Vt(e, t) {
 	for (let n of e.values()) {
-		let e = Lt(n, t);
+		let e = Rt(n, t);
 		e > 1 && n.splice(0, e - 1);
 	}
 }
-var Vt = class {
+var Ht = class {
 	conn;
 	onChange;
 	now;
@@ -1048,7 +1056,7 @@ var Vt = class {
 		let n = [...new Set(e)].sort(), r = `${n.join(",")}|${t}`;
 		r !== (this.debounceTimer ? this.pendingKey : this.activeKey) && (this.clearDebounce(), r !== this.activeKey && (this.pendingKey = r, this.debounceTimer = setTimeout(() => {
 			this.debounceTimer = void 0, this.subscribe(n, t, r);
-		}, jt)));
+		}, Mt)));
 	}
 	close() {
 		this.clearDebounce(), this.generation++, this.teardown(), this.activeKey = void 0, this.activeIds = [], this.listening && this.conn.removeEventListener("ready", this.onReady), this.listening = !1;
@@ -1067,11 +1075,11 @@ var Vt = class {
 		let i = ++this.generation;
 		if (this.activeKey = n, this.activeIds = e, this.hours = t, e.length === 0) return;
 		this.listening ||= (this.conn.addEventListener("ready", this.onReady), !0);
-		let a = this.now() - t * Nt;
+		let a = this.now() - t * Pt;
 		this.trimTimer = setInterval(() => {
-			Bt(this.store, this.now() - this.hours * Nt), this.storeVersion++;
-		}, Mt), this.conn.subscribeMessage((e) => {
-			i === this.generation && (zt(this.store, e), this.storeVersion++, this.onChange());
+			Vt(this.store, this.now() - this.hours * Pt), this.storeVersion++;
+		}, Nt), this.conn.subscribeMessage((e) => {
+			i === this.generation && (Bt(this.store, e), this.storeVersion++, this.onChange());
 		}, {
 			type: "history/stream",
 			entity_ids: e,
@@ -1082,10 +1090,10 @@ var Vt = class {
 		}, { resubscribe: !1 }).then((e) => {
 			i === this.generation ? this.unsub = e : e().catch(() => {});
 		}).catch((e) => {
-			i === this.generation && !Ft(e) && console.error("powermeter-card: history/stream subscription failed", e);
+			i === this.generation && !It(e) && console.error("powermeter-card: history/stream subscription failed", e);
 		});
 	}
-}, Ht = {
+}, Ut = {
 	normal: {
 		r: 67,
 		g: 160,
@@ -1101,12 +1109,12 @@ var Vt = class {
 		g: 68,
 		b: 55
 	}
-}, Ut = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i, Wt = /^rgba?\(\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/i, Gt = /^var\(\s*(--[^,\s)]+)\s*(?:,[^)]*)?\)$/;
-function Kt(e) {
+}, Wt = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i, Gt = /^rgba?\(\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/i, Kt = /^var\(\s*(--[^,\s)]+)\s*(?:,[^)]*)?\)$/;
+function qt(e) {
 	return Math.max(0, Math.min(255, Math.round(e)));
 }
-function qt(e) {
-	let t = e.trim(), n = Ut.exec(t);
+function Jt(e) {
+	let t = e.trim(), n = Wt.exec(t);
 	if (n) {
 		let e = n[1];
 		return e.length === 3 && (e = [...e].map((e) => e + e).join("")), {
@@ -1115,58 +1123,58 @@ function qt(e) {
 			b: parseInt(e.slice(4, 6), 16)
 		};
 	}
-	let r = Wt.exec(t);
+	let r = Gt.exec(t);
 	return r ? {
-		r: Kt(Number(r[1])),
-		g: Kt(Number(r[2])),
-		b: Kt(Number(r[3]))
+		r: qt(Number(r[1])),
+		g: qt(Number(r[2])),
+		b: qt(Number(r[3]))
 	} : null;
 }
-var Jt = "rgba(1, 2, 3, 0.004)", Yt = /* @__PURE__ */ new WeakMap();
-function Xt(e) {
-	let t = e.shadowRoot ?? e, n = Yt.get(t);
+var Yt = "rgba(1, 2, 3, 0.004)", Xt = /* @__PURE__ */ new WeakMap();
+function Zt(e) {
+	let t = e.shadowRoot ?? e, n = Xt.get(t);
 	if (n?.parentElement?.parentNode !== t) {
 		let e = document.createElement("span");
-		e.setAttribute("aria-hidden", "true"), e.style.display = "none", e.style.color = Jt, n = document.createElement("span"), e.append(n), t.append(e), Yt.set(t, n);
+		e.setAttribute("aria-hidden", "true"), e.style.display = "none", e.style.color = Yt, n = document.createElement("span"), e.append(n), t.append(e), Xt.set(t, n);
 	}
 	return n;
 }
-function Zt(e, t) {
-	let n = Xt(e);
+function Qt(e, t) {
+	let n = Zt(e);
 	if (n.style.color = "", n.style.color = t, !n.style.color) return null;
 	let r = getComputedStyle(n).color.trim(), i = getComputedStyle(n.parentElement).color.trim();
-	return r === "" || r === i ? null : qt(r);
+	return r === "" || r === i ? null : Jt(r);
 }
-function Qt(e, t, n) {
-	let r = t.trim(), i = r, a = Gt.exec(i);
-	return a && (i = getComputedStyle(e).getPropertyValue(a[1]).trim()), qt(i) ?? Zt(e, r) ?? n;
+function $t(e, t, n) {
+	let r = t.trim(), i = r, a = Kt.exec(i);
+	return a && (i = getComputedStyle(e).getPropertyValue(a[1]).trim()), Jt(i) ?? Qt(e, r) ?? n;
 }
-function $t(e, t) {
+function en(e, t) {
 	return {
-		normal: Qt(e, t.normal, Ht.normal),
-		warning: Qt(e, t.warning, Ht.warning),
-		critical: Qt(e, t.critical, Ht.critical)
+		normal: $t(e, t.normal, Ut.normal),
+		warning: $t(e, t.warning, Ut.warning),
+		critical: $t(e, t.critical, Ut.critical)
 	};
 }
-function en(e, t, n) {
+function tn(e, t, n) {
 	return {
 		r: Math.round(e.r + (t.r - e.r) * n),
 		g: Math.round(e.g + (t.g - e.g) * n),
 		b: Math.round(e.b + (t.b - e.b) * n)
 	};
 }
-function tn(e, t, n) {
+function nn(e, t, n) {
 	return n > t ? (e - t) / (n - t) : 1;
 }
 function U(e) {
 	return `rgb(${e.r}, ${e.g}, ${e.b})`;
 }
-function nn(e, t, n, r) {
+function rn(e, t, n, r) {
 	let i = t.twoSided ? Math.abs(e) : e;
-	return r ? i <= t.normal ? U(n.normal) : i >= t.critical ? U(n.critical) : i <= t.warning ? U(en(n.normal, n.warning, tn(i, t.normal, t.warning))) : U(en(n.warning, n.critical, tn(i, t.warning, t.critical))) : i < t.warning ? U(n.normal) : i < t.critical ? U(n.warning) : U(n.critical);
+	return r ? i <= t.normal ? U(n.normal) : i >= t.critical ? U(n.critical) : i <= t.warning ? U(tn(n.normal, n.warning, nn(i, t.normal, t.warning))) : U(tn(n.warning, n.critical, nn(i, t.warning, t.critical))) : i < t.warning ? U(n.normal) : i < t.critical ? U(n.warning) : U(n.critical);
 }
 // src/series.ts
-var rn = [
+var an = [
 	"#44739e",
 	"#e45e65",
 	"#39c07f",
@@ -1177,99 +1185,99 @@ var rn = [
 	"#7a8f3a",
 	"#c2549a",
 	"#8a8f98"
-], an = {
+], on = {
 	W: 1,
 	kW: 1e3,
 	MW: 1e6
-}, on = {
+}, sn = {
 	w: 1,
 	kw: 1e3
 };
-function sn(e) {
+function cn(e) {
 	let t = e?.trim() ?? "";
 	if (t === "") return 1;
-	if (Object.hasOwn(an, t)) return an[t];
+	if (Object.hasOwn(on, t)) return on[t];
 	let n = t.toLowerCase();
-	return Object.hasOwn(on, n) ? on[n] : null;
+	return Object.hasOwn(sn, n) ? sn[n] : null;
 }
-function cn(e) {
-	return sn(e) !== null;
+function ln(e) {
+	return cn(e) !== null;
 }
-function ln(e, t) {
-	return e * (sn(t) ?? 1);
+function un(e, t) {
+	return e * (cn(t) ?? 1);
 }
 function W(e, t) {
 	if (t) return t;
-	let n = e % rn.length;
-	return `var(--graph-color-${n + 1}, ${rn[n]})`;
+	let n = e % an.length;
+	return `var(--graph-color-${n + 1}, ${an[n]})`;
 }
 // src/sparkline.ts
-var un = 60, dn = 24;
-function fn(e, t, n, r, i) {
+var dn = 60, fn = 24;
+function pn(e, t, n, r, i) {
 	let { lines: a, areas: o } = Ge(e, n, {
-		w: un,
-		h: dn
-	}), s = `cpm-grad-${i}`, c = e.length, l = j(0, n, dn);
+		w: dn,
+		h: fn
+	}), s = `cpm-grad-${i}`, c = e.length, l = j(0, n, fn);
 	return w`
-    <svg viewBox="0 0 ${un} ${dn}" preserveAspectRatio="none">
+    <svg viewBox="0 0 ${dn} ${fn}" preserveAspectRatio="none">
       <defs>
-        <linearGradient id=${s} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2=${un} y2="0">
+        <linearGradient id=${s} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2=${dn} y2="0">
           ${e.map((e, n) => t[n] ?? t[t.length - 1] ?? "currentColor").map((e, t) => w`<stop offset=${c > 1 ? t / (c - 1) : 0} stop-color=${e}></stop>`)}
         </linearGradient>
       </defs>
-      ${r ? w`<line class="zero" x1="0" y1=${l} x2=${un} y2=${l} stroke="currentColor" stroke-opacity="0.3" vector-effect="non-scaling-stroke"></line>` : ""}
+      ${r ? w`<line class="zero" x1="0" y1=${l} x2=${dn} y2=${l} stroke="currentColor" stroke-opacity="0.3" vector-effect="non-scaling-stroke"></line>` : ""}
       ${o.map((e) => w`<path class="area" d=${e} fill="url(#${s})" fill-opacity="0.2"></path>`)}
       ${a.map((e) => w`<path class="line" d=${e} fill="none" stroke="url(#${s})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path>`)}
     </svg>
   `;
 }
 // src/tooltip.ts
-var pn = 36e5;
-function mn(e, t, n) {
+var mn = 36e5;
+function hn(e, t, n) {
 	if (!(t > 0) || n <= 1) return 0;
 	let r = Math.round(e / t * (n - 1));
 	return Math.min(n - 1, Math.max(0, r));
 }
-function hn(e, t) {
+function gn(e, t) {
 	return t > 1 ? e / (t - 1) * 100 : 50;
 }
-function gn(e, t, n, r) {
-	let i = t * pn;
+function _n(e, t, n, r) {
+	let i = t * mn;
 	return e - i + (r + 1) * i / n;
 }
-var _n = (e) => C`<span class="swatch" style="background: ${e}"></span>`;
-function vn(e, t, n, r) {
+var vn = (e) => C`<span class="swatch" style="background: ${e}"></span>`;
+function yn(e, t, n, r) {
 	return C`
     <div class="guide" style="left: ${r}%" aria-hidden="true"></div>
     <div class="tip ${r < 50 ? "right" : "left"}" style="left: ${r}%" aria-hidden="true">
       <div class="tip-title">${e}</div>
       ${t.map((e) => C`<div class="tip-row">
-            ${_n(e.color)}<span class="tip-name">${e.name}</span
+            ${vn(e.color)}<span class="tip-name">${e.name}</span
             ><span class="tip-value">${e.value === null ? "—" : n(e.value)}</span>
           </div>`)}
     </div>
   `;
 }
-function yn(e, t, n, r) {
+function bn(e, t, n, r) {
 	return C`<div class="tip slice" aria-hidden="true">
     <div class="tip-row">
-      ${_n(t)}<span class="tip-name">${e}</span><span class="tip-value">${n}</span
+      ${vn(t)}<span class="tip-name">${e}</span><span class="tip-value">${n}</span
       ><span class="tip-share">${r}</span>
     </div>
   </div>`;
 }
 // src/card.ts
-function bn(e) {
+function xn(e) {
 	return e.timeChart !== void 0 || e.donut;
 }
-function xn(e) {
+function Sn(e) {
 	return e < 1 ? `${Math.round(e * 60)} min` : `${Math.round(e * 100) / 100} h`;
 }
-var G = 60, Sn = 36e5, Cn = 10, wn = "custom:constant-powermeter-card", Tn = 15e3, En = {
+var G = 60, Cn = 36e5, wn = 10, Tn = "custom:constant-powermeter-card", En = 15e3, Dn = {
 	unit: "W",
 	precision: 0
-}, Dn = 3e3;
-function On() {
+}, On = 3e3;
+function kn() {
 	return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? !1;
 }
 function K(e) {
@@ -1277,16 +1285,16 @@ function K(e) {
 	let t = Number(e);
 	return Number.isFinite(t) ? t : null;
 }
-function kn(e) {
-	return e === void 0 || !Number.isFinite(e) ? 0 : Math.min(Cn, Math.max(0, Math.round(e)));
+function An(e) {
+	return e === void 0 || !Number.isFinite(e) ? 0 : Math.min(wn, Math.max(0, Math.round(e)));
 }
-function An(e, t, n, r) {
+function jn(e, t, n, r) {
 	let i = e.find((e) => e !== null);
 	if (i === void 0) return [];
-	let a = nn(i, t, n, r);
-	return e.map((e) => (e !== null && (a = nn(e, t, n, r)), a));
+	let a = rn(i, t, n, r);
+	return e.map((e) => (e !== null && (a = rn(e, t, n, r)), a));
 }
-var jn = class extends A {
+var Mn = class extends A {
 	static properties = {
 		hass: { attribute: !1 },
 		preview: { type: Boolean },
@@ -1312,7 +1320,7 @@ var jn = class extends A {
 	static getStubConfig(e) {
 		let t = Object.values(e.states).filter((e) => e.entity_id.startsWith("sensor."));
 		return {
-			type: wn,
+			type: Tn,
 			meters: [(t.find((e) => e.attributes.device_class === "power" || e.attributes.unit_of_measurement === "W" || e.attributes.unit_of_measurement === "kW") ?? t[0])?.entity_id ?? "sensor.power"]
 		};
 	}
@@ -1323,7 +1331,7 @@ var jn = class extends A {
 		let e = this.config;
 		if (!e) return 1;
 		let t = e.meters.reduce((e, t) => e + (t.display.includes("bar") ? 2 : 1), 0), n = +!!e.title;
-		if (!bn(e)) return n + Math.max(1, Math.ceil(t / 2));
+		if (!xn(e)) return n + Math.max(1, Math.ceil(t / 2));
 		let r = e.rows ? Math.max(1, Math.ceil(t / 2)) : 1;
 		return n + 3 + r;
 	}
@@ -1343,7 +1351,7 @@ var jn = class extends A {
 	shownValue(e, t, n) {
 		if (t === null) return this.shown.delete(e), this.tweens.delete(e), null;
 		let r = this.shown.get(e);
-		if (r === void 0 || On()) return this.shown.set(e, t), this.tweens.delete(e), t;
+		if (r === void 0 || kn()) return this.shown.set(e, t), this.tweens.delete(e), t;
 		let i = this.tweens.get(e);
 		if (!i || i.to !== t) {
 			if (!i && r === t) return t;
@@ -1363,7 +1371,7 @@ var jn = class extends A {
 	}
 	syncTick() {
 		if (!this.isConnected || !this.config) return;
-		let e = Math.max(Tn, this.config.hours * Sn / G);
+		let e = Math.max(En, this.config.hours * Cn / G);
 		(this.tickTimer === void 0 || e !== this.tickMs) && (this.stopTick(), this.tickMs = e, this.tickTimer = setInterval(() => this.requestUpdate(), e));
 	}
 	stopTick() {
@@ -1371,12 +1379,12 @@ var jn = class extends A {
 	}
 	syncHistory() {
 		if (!this.isConnected || !this.hass || !this.config) return;
-		this.history ??= new Vt(this.hass.connection, () => this.requestUpdate());
+		this.history ??= new Ht(this.hass.connection, () => this.requestUpdate());
 		let e = this.config.meters.map((e) => e.entity), t = this.chartTotal(this.config);
 		t !== void 0 && e.push(t), this.history.update(e, this.config.hours);
 	}
 	chartTotal(e) {
-		if (bn(e) && e.total !== void 0) return cn(this.unitOf(e.total)) ? e.total : void 0;
+		if (xn(e) && e.total !== void 0) return ln(this.unitOf(e.total)) ? e.total : void 0;
 	}
 	shouldUpdate(e) {
 		if (!e.has("hass") || e.size > 1) return !0;
@@ -1393,7 +1401,7 @@ var jn = class extends A {
 	format(e, t) {
 		let n = this.hass?.locale, r = `${n?.language ?? ""}|${n?.number_format ?? ""}|${t}`, i = this.formats.get(r);
 		if (!i) {
-			let { locales: e, useGrouping: a } = At(n);
+			let { locales: e, useGrouping: a } = jt(n);
 			i = new Intl.NumberFormat(e, {
 				minimumFractionDigits: t,
 				maximumFractionDigits: t,
@@ -1420,7 +1428,7 @@ var jn = class extends A {
 		t?.kind === e.kind && (t.kind === "time" ? t.step === e.step : t.key === e.key) || (this.hover = e);
 	}
 	leaveHover = (e) => {
-		e.pointerType === "touch" ? (clearTimeout(this.hoverTimer), this.hoverTimer = setTimeout(() => this.clearHover(), Dn)) : this.clearHover();
+		e.pointerType === "touch" ? (clearTimeout(this.hoverTimer), this.hoverTimer = setTimeout(() => this.clearHover(), On)) : this.clearHover();
 	};
 	onTimePointer = (e) => {
 		let t = e.currentTarget.querySelector("svg");
@@ -1428,7 +1436,7 @@ var jn = class extends A {
 		let n = t.getBoundingClientRect();
 		this.setHover({
 			kind: "time",
-			step: mn(e.clientX - n.left, n.width, G)
+			step: hn(e.clientX - n.left, n.width, G)
 		});
 	};
 	onSlicePointer = (e) => {
@@ -1440,19 +1448,20 @@ var jn = class extends A {
 	};
 	stepTitle(e, t, n) {
 		if (n === 59) return "Now";
-		let r = gn(t, e.hours, G, n);
+		let r = _n(t, e.hours, G, n);
 		return new Intl.DateTimeFormat(this.hass?.locale?.language, {
 			hour: "2-digit",
-			minute: "2-digit"
+			minute: "2-digit",
+			hour12: At(this.hass?.locale)
 		}).format(r);
 	}
 	render() {
 		let e = this.config;
 		if (!e || !this.hass) return E;
-		let t = this.palette ?? $t(this, e.colors);
+		let t = this.palette ?? en(this, e.colors);
 		this.isConnected && (this.palette = t);
 		let n = Date.now();
-		return bn(e) ? this.renderCharted(e, t, n) : C`
+		return xn(e) ? this.renderCharted(e, t, n) : C`
       <ha-card .header=${e.title}>
         <div class="rows">${e.meters.map((r, i) => this.renderRow(e, r, i, t, n))}</div>
       </ha-card>
@@ -1474,7 +1483,7 @@ var jn = class extends A {
 	}
 	chartMeters(e) {
 		let t = e.total;
-		return e.meters.flatMap((e, n) => e.entity === t || !cn(this.unitOf(e.entity, e)) ? [] : [{
+		return e.meters.flatMap((e, n) => e.entity === t || !ln(this.unitOf(e.entity, e)) ? [] : [{
 			m: e,
 			i: n
 		}]);
@@ -1487,7 +1496,7 @@ var jn = class extends A {
 	}
 	liveWatts(e, t) {
 		let n = K(this.hass.states[e]?.state);
-		return n === null ? null : ln(n, t);
+		return n === null ? null : un(n, t);
 	}
 	formatWithUnit(e, t) {
 		let n = this.format(e, t.precision);
@@ -1495,13 +1504,13 @@ var jn = class extends A {
 	}
 	chartBuckets(e, t, n, r, i) {
 		let a = e.timeChart === "stacked" ? "mean" : "peak", o = this.historyBuckets(e, t, n, a, i);
-		return o[o.length - 1] = K(this.hass.states[n]?.state), o.map((e) => e === null ? null : ln(e, r));
+		return o[o.length - 1] = K(this.hass.states[n]?.state), o.map((e) => e === null ? null : un(e, r));
 	}
 	historyBuckets(e, t, n, r, i) {
-		let a = e.hours * Sn / G, o = `${this.history?.version ?? -1}|${e.hours}|${Math.floor(t / a)}`, s = `${n}|${r}|${r === "peak" && i}`, c = this.bucketCache.get(s);
+		let a = e.hours * Cn / G, o = `${this.history?.version ?? -1}|${e.hours}|${Math.floor(t / a)}`, s = `${n}|${r}|${r === "peak" && i}`, c = this.bucketCache.get(s);
 		if (c?.stamp === o) return [...c.buckets];
 		let l = this.history?.store.get(n) ?? [], u = {
-			start: t - e.hours * Sn,
+			start: t - e.hours * Cn,
 			end: t,
 			count: G
 		}, d = r === "mean" ? Ve(l, u) : Be(l, {
@@ -1539,7 +1548,7 @@ var jn = class extends A {
 			name: this.meterName(t),
 			color: W(r, t.color),
 			buckets: this.chartBuckets(e, n, t.entity, this.unitOf(t.entity, t), t.twoSided)
-		})), i = this.chartTotal(e), a = i === void 0 ? void 0 : this.chartBuckets(e, n, i, this.unitOf(i), !1), o = a && lt(a, r), s, c, l = `last ${xn(e.hours)}`;
+		})), i = this.chartTotal(e), a = i === void 0 ? void 0 : this.chartBuckets(e, n, i, this.unitOf(i), !1), o = a && lt(a, r), s, c, l = `last ${Sn(e.hours)}`;
 		if (t === "stacked") {
 			let e = ut(r, o);
 			c = ft(e), s = $e(e, c, `Stacked power, ${l}`);
@@ -1572,7 +1581,7 @@ var jn = class extends A {
 					value: e
 				});
 			}
-			f = vn(this.stepTitle(e, n, d.step), t, (e) => this.formatWithUnit(e, En), hn(d.step, G));
+			f = yn(this.stepTitle(e, n, d.step), t, (e) => this.formatWithUnit(e, Dn), gn(d.step, G));
 		}
 		return C`
       <div
@@ -1582,38 +1591,44 @@ var jn = class extends A {
         @pointerleave=${this.leaveHover}
       >
         ${s}
-        ${u ? C`<span class="label top">${this.formatWithUnit(c.hi, En)}</span>` : E}
-        <span class="label bottom">${xn(e.hours)}</span>
+        ${u ? C`<span class="label top">${this.formatWithUnit(c.hi, Dn)}</span>` : E}
+        <span class="label bottom">${Sn(e.hours)}</span>
         ${f}
       </div>
     `;
 	}
 	renderDonutChart(e, t) {
-		let n = this.chartMeters(e).map(({ m: e, i: n }) => {
-			let r = this.unitOf(e.entity, e), i = this.shownValue(e.entity, K(this.hass.states[e.entity]?.state), t);
-			return {
-				key: String(n),
-				name: this.meterName(e),
-				color: W(n, e.color),
-				value: i === null ? null : ln(i, r)
-			};
-		}), r = this.chartTotal(e), i = null;
-		if (r !== void 0) {
-			let e = this.shownValue(r, K(this.hass.states[r]?.state), t);
-			i = e === null ? null : ln(e, this.unitOf(r));
+		let n = (t) => {
+			let n = this.chartMeters(e).map(({ m: e, i: n }) => {
+				let r = t(e.entity, K(this.hass.states[e.entity]?.state));
+				return {
+					key: String(n),
+					name: this.meterName(e),
+					color: W(n, e.color),
+					value: r === null ? null : un(r, this.unitOf(e.entity, e))
+				};
+			}), r = this.chartTotal(e), i = null;
+			if (r !== void 0) {
+				let e = t(r, K(this.hass.states[r]?.state));
+				i = e === null ? null : un(e, this.unitOf(r));
+			}
+			return mt(n, i);
+		}, { slices: r, center: i } = n((e, n) => this.shownValue(e, n, t)), a = r.length === 0 || i === null, o = a ? "—" : this.formatWithUnit(i, Dn), s = `Power split, ${a ? "no data" : o}`, c = this.hover, l = E;
+		if (c?.kind === "slice") {
+			let e = n((e, t) => t), t = e.slices.find((e) => e.key === c.key);
+			t && e.center !== null && e.center > 0 && (l = bn(t.name, t.color, this.formatWithUnit(t.value, Dn), `${Math.round(t.value / e.center * 100)}%`));
 		}
-		let { slices: a, center: o } = mt(n, i), s = a.length === 0 || o === null, c = s ? "—" : this.formatWithUnit(o, En), l = `Power split, ${s ? "no data" : c}`, u = this.hover, d = u?.kind === "slice" ? a.find((e) => e.key === u.key) : void 0, f = d && o !== null && o > 0 ? yn(d.name, d.color, this.formatWithUnit(d.value, En), `${Math.round(d.value / o * 100)}%`) : E;
 		return C`<div
       class="donut"
       @pointerover=${this.onSlicePointer}
       @pointerdown=${this.onSlicePointer}
       @pointerleave=${this.leaveHover}
     >
-      ${it(a, c, l)}${f}
+      ${it(r, o, s)}${l}
     </div>`;
 	}
 	renderRow(e, t, n, r, i, a) {
-		let o = this.hass.states[t.entity], s = K(o?.state), c = this.shownValue(t.entity, s, i), l = t.name ?? o?.attributes.friendly_name ?? t.entity, u = t.unit ?? o?.attributes.unit_of_measurement ?? "", d = kn(t.precision ?? this.hass.entities?.[t.entity]?.display_precision), f = this.clickable(t);
+		let o = this.hass.states[t.entity], s = K(o?.state), c = this.shownValue(t.entity, s, i), l = t.name ?? o?.attributes.friendly_name ?? t.entity, u = t.unit ?? o?.attributes.unit_of_measurement ?? "", d = An(t.precision ?? this.hass.entities?.[t.entity]?.display_precision), f = this.clickable(t);
 		return C`
       <div
         class="row"
@@ -1639,12 +1654,12 @@ var jn = class extends A {
 	}
 	renderSpark(e, t, n, r, i, a) {
 		let o = this.historyBuckets(e, i, t.entity, "peak", t.twoSided);
-		return o[o.length - 1] = n, fn(o, An(o, t, r, e.blend), We(o, t, e.scale), t.twoSided, String(a));
+		return o[o.length - 1] = n, pn(o, jn(o, t, r, e.blend), We(o, t, e.scale), t.twoSided, String(a));
 	}
 	renderBar(e, t, n, r) {
 		let i = t.twoSided ? Ue(0, t.min, t.max).zero : null, a = E;
 		if (n !== null) {
-			let i = Ue(n, t.min, t.max), o = nn(n, t, r, e.blend);
+			let i = Ue(n, t.min, t.max), o = rn(n, t, r, e.blend);
 			a = C`<div
         class="fill"
         style="left: ${i.left}%; width: ${i.width}%; background: ${o}"
@@ -1913,17 +1928,17 @@ var jn = class extends A {
       }
     }
   `;
-}, Mn = {
+}, Nn = {
 	ATTRIBUTE: 1,
 	CHILD: 2,
 	PROPERTY: 3,
 	BOOLEAN_ATTRIBUTE: 4,
 	EVENT: 5,
 	ELEMENT: 6
-}, Nn = (e) => (...t) => ({
+}, Pn = (e) => (...t) => ({
 	_$litDirective$: e,
 	values: t
-}), Pn = class {
+}), Fn = class {
 	constructor(e) {}
 	get _$AU() {
 		return this._$AM._$AU;
@@ -1937,9 +1952,9 @@ var jn = class extends A {
 	update(e, t) {
 		return this.render(...t);
 	}
-}, { I: Fn } = Pe, In = (e) => e, Ln = () => document.createComment(""), q = (e, t, n) => {
+}, { I: In } = Pe, Ln = (e) => e, Rn = () => document.createComment(""), q = (e, t, n) => {
 	let r = e._$AA.parentNode, i = t === void 0 ? e._$AB : t._$AA;
-	if (n === void 0) n = new Fn(r.insertBefore(Ln(), i), r.insertBefore(Ln(), i), e, e.options);
+	if (n === void 0) n = new In(r.insertBefore(Rn(), i), r.insertBefore(Rn(), i), e, e.options);
 	else {
 		let t = n._$AB.nextSibling, a = n._$AM, o = a !== e;
 		if (o) {
@@ -1949,21 +1964,21 @@ var jn = class extends A {
 		if (t !== i || o) {
 			let e = n._$AA;
 			for (; e !== t;) {
-				let t = In(e).nextSibling;
-				In(r).insertBefore(e, i), e = t;
+				let t = Ln(e).nextSibling;
+				Ln(r).insertBefore(e, i), e = t;
 			}
 		}
 	}
 	return n;
-}, J = (e, t, n = e) => (e._$AI(t, n), e), Rn = {}, zn = (e, t = Rn) => e._$AH = t, Bn = (e) => e._$AH, Vn = (e) => {
+}, J = (e, t, n = e) => (e._$AI(t, n), e), zn = {}, Bn = (e, t = zn) => e._$AH = t, Vn = (e) => e._$AH, Hn = (e) => {
 	e._$AR(), e._$AA.remove();
-}, Hn = (e, t, n) => {
+}, Un = (e, t, n) => {
 	let r = /* @__PURE__ */ new Map();
 	for (let i = t; i <= n; i++) r.set(e[i], i);
 	return r;
-}, Un = Nn(class extends Pn {
+}, Wn = Pn(class extends Fn {
 	constructor(e) {
-		if (super(e), e.type !== Mn.CHILD) throw Error("repeat() can only be used in text expressions");
+		if (super(e), e.type !== Nn.CHILD) throw Error("repeat() can only be used in text expressions");
 	}
 	dt(e, t, n) {
 		let r;
@@ -1979,7 +1994,7 @@ var jn = class extends A {
 		return this.dt(e, t, n).values;
 	}
 	update(e, [t, n, r]) {
-		let i = Bn(e), { values: a, keys: o } = this.dt(t, n, r);
+		let i = Vn(e), { values: a, keys: o } = this.dt(t, n, r);
 		if (!Array.isArray(i)) return this.ut = o, a;
 		let s = this.ut ??= [], c = [], l, u, d = 0, f = i.length - 1, p = 0, m = a.length - 1;
 		for (; d <= f && p <= m;) if (i[d] === null) d++;
@@ -1988,7 +2003,7 @@ var jn = class extends A {
 		else if (s[f] === o[m]) c[m] = J(i[f], a[m]), f--, m--;
 		else if (s[d] === o[m]) c[m] = J(i[d], a[m]), q(e, c[m + 1], i[d]), d++, m--;
 		else if (s[f] === o[p]) c[p] = J(i[f], a[p]), q(e, i[d], i[f]), f--, p++;
-		else if (l === void 0 && (l = Hn(o, p, m), u = Hn(s, d, f)), l.has(s[d])) {
+		else if (l === void 0 && (l = Un(o, p, m), u = Un(s, d, f)), l.has(s[d])) {
 			if (l.has(s[f])) {
 				let t = u.get(o[p]), n = t === void 0 ? null : i[t];
 				if (n === null) {
@@ -1996,23 +2011,23 @@ var jn = class extends A {
 					J(t, a[p]), c[p] = t;
 				} else c[p] = J(n, a[p]), q(e, i[d], n), i[t] = null;
 				p++;
-			} else Vn(i[f]), f--;
-		} else Vn(i[d]), d++;
+			} else Hn(i[f]), f--;
+		} else Hn(i[d]), d++;
 		for (; p <= m;) {
 			let t = q(e, c[m + 1]);
 			J(t, a[p]), c[p++] = t;
 		}
 		for (; d <= f;) {
 			let e = i[d++];
-			e !== null && Vn(e);
+			e !== null && Hn(e);
 		}
-		return this.ut = o, zn(e, c), T;
+		return this.ut = o, Bn(e, c), T;
 	}
-}), Wn = [
+}), Gn = [
 	"normal",
 	"warning",
 	"critical"
-], Gn = Wn, Kn = [
+], Kn = Gn, qn = [
 	"entity",
 	"name",
 	"unit",
@@ -2023,17 +2038,17 @@ var jn = class extends A {
 	"warning",
 	"critical",
 	"color"
-], qn = 0, Y = kt({
+], Jn = 0, Y = kt({
 	type: "",
 	meters: ["sensor.x"]
-}), Jn = Y.meters[0].max, X = {
+}), Yn = Y.meters[0].max, X = {
 	order: "Normal ≤ Warning ≤ Critical",
 	negative: "Use a positive value: two-sided thresholds apply to |value|",
 	range: "Max must be above Min",
 	twoSided: "Two-sided: thresholds apply to |value|",
 	chartConflict: "Stacked and Lines cannot be shown together; only the first one listed is shown",
 	notInChart: "Not in chart"
-}, Yn = {
+}, Xn = {
 	title: "Title",
 	display: "Display",
 	hours: "Window (hours)",
@@ -2055,49 +2070,49 @@ var jn = class extends A {
 	tap_action: "Tap action",
 	navigation_path: "Navigation path",
 	url_path: "URL"
-}, Xn = {
+}, Zn = {
 	normal: "Normal color",
 	warning: "Warning color",
 	critical: "Critical color"
 };
-function Zn(e) {
+function Qn(e) {
 	return e === void 0 || e === "" || Array.isArray(e) && e.length === 0;
 }
-function Qn(e, t) {
+function $n(e, t) {
 	let n = { ...e };
-	for (let [e, r] of Object.entries(t)) Zn(r) ? delete n[e] : n[e] = r;
+	for (let [e, r] of Object.entries(t)) Qn(r) ? delete n[e] : n[e] = r;
 	return n;
 }
-function $n(e) {
+function er(e) {
 	return typeof e == "string" ? { entity: e } : { ...e };
 }
-function er(e, t) {
+function tr(e, t) {
 	return Number.isInteger(t) && t >= 0 && t < e.meters.length;
 }
-function tr(e, t) {
+function nr(e, t) {
 	return {
 		...e,
 		meters: [...e.meters, { entity: t }]
 	};
 }
-function nr(e, t) {
-	return er(e, t) ? {
+function rr(e, t) {
+	return tr(e, t) ? {
 		...e,
 		meters: e.meters.filter((e, n) => n !== t)
 	} : e;
 }
-function rr(e, t, n) {
+function ir(e, t, n) {
 	let r = t + n;
-	if (!er(e, t) || !er(e, r)) return e;
+	if (!tr(e, t) || !tr(e, r)) return e;
 	let i = [...e.meters];
 	return [i[t], i[r]] = [i[r], i[t]], {
 		...e,
 		meters: i
 	};
 }
-function ir(e, t, n) {
-	if (!er(e, t)) return e;
-	let r = $n(e.meters[t]), i = Qn(r, n);
+function ar(e, t, n) {
+	if (!tr(e, t)) return e;
+	let r = er(e.meters[t]), i = $n(r, n);
 	if (Z(r, i)) return e;
 	let a = [...e.meters];
 	return a[t] = i, {
@@ -2105,39 +2120,39 @@ function ir(e, t, n) {
 		meters: a
 	};
 }
-function ar(e, t) {
-	return Qn(e, t);
+function or(e, t) {
+	return $n(e, t);
 }
-function or(e, t, n) {
-	let r = Qn(e.colors ?? {}, { [t]: n });
-	return ar(e, { colors: Object.keys(r).length > 0 ? r : void 0 });
-}
-function sr(e) {
-	return Math.round(e * 100) / 100;
+function sr(e, t, n) {
+	let r = $n(e.colors ?? {}, { [t]: n });
+	return or(e, { colors: Object.keys(r).length > 0 ? r : void 0 });
 }
 function cr(e) {
-	let t = e.twoSided ? 0 : e.min, n = e.twoSided ? Math.max(-e.min, e.max) : e.max, r = (e) => Math.min(100, Math.max(0, sr((e - t) * 100 / (n - t)))), i = r(e.normal), a = r(e.warning);
+	return Math.round(e * 100) / 100;
+}
+function lr(e) {
+	let t = e.twoSided ? 0 : e.min, n = e.twoSided ? Math.max(-e.min, e.max) : e.max, r = (e) => Math.min(100, Math.max(0, cr((e - t) * 100 / (n - t)))), i = r(e.normal), a = r(e.warning);
 	return {
 		normal: [0, i],
 		warning: [i, a],
 		critical: [a, 100]
 	};
 }
-function lr(e, t) {
+function ur(e, t) {
 	let n = {};
 	if (e.errors.includes("range") && (n.max = X.range), e.errors.includes("thresholds_negative")) {
-		let e = Gn.filter((e) => (t?.[e] ?? 0) < 0);
+		let e = Kn.filter((e) => (t?.[e] ?? 0) < 0);
 		for (let t of e.length > 0 ? e : ["normal"]) n[t] = X.negative;
 	}
 	if (e.errors.includes("thresholds_order")) {
-		let r = t ? ur(t, e.twoSided) : [];
+		let r = t ? dr(t, e.twoSided) : [];
 		for (let e of r.length > 0 ? r : ["warning"]) n[e] ??= X.order;
 	}
 	return n;
 }
-function ur(e, t) {
+function dr(e, t) {
 	let n = [], r = -Infinity;
-	for (let i of Gn) {
+	for (let i of Kn) {
 		let a = e[i];
 		if (typeof a != "number" || !Number.isFinite(a)) continue;
 		let o = t ? Math.abs(a) : a;
@@ -2145,50 +2160,50 @@ function ur(e, t) {
 	}
 	return n;
 }
-function dr(e, t) {
+function fr(e, t) {
 	return Array.isArray(e) && Array.isArray(t) ? e.length === t.length && e.every((e, n) => e === t[n]) : e === t;
 }
-function fr(e, t) {
+function pr(e, t) {
 	let n = {};
-	for (let r of /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)])) dr(e[r], t[r]) || (n[r] = t[r]);
+	for (let r of /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)])) fr(e[r], t[r]) || (n[r] = t[r]);
 	return n;
 }
-function pr(e) {
+function mr(e) {
 	let t = e?.includes("sparkline") ?? !1, n = e?.includes("bar") ?? !1;
 	return t && n ? "both" : t ? "sparkline" : n ? "bar" : "default";
 }
-var mr = {
+var hr = {
 	default: void 0,
 	sparkline: ["sparkline"],
 	bar: ["bar"],
 	both: ["sparkline", "bar"]
 };
-function hr(e, t) {
-	let n = $n(e), r = {};
-	for (let e of Kn) n[e] !== void 0 && (r[e] = n[e]);
-	r.display = pr(n.display);
+function gr(e, t) {
+	let n = er(e), r = {};
+	for (let e of qn) n[e] !== void 0 && (r[e] = n[e]);
+	r.display = mr(n.display);
 	let i = n.tap_action;
 	return r.tap_action = t ?? i?.action ?? "more-info", i?.action === "navigate" && (r.navigation_path = i.navigation_path), i?.action === "url" && (r.url_path = i.url_path), r;
 }
-function gr(e) {
+function _r(e) {
 	return typeof e == "string" && e.trim() !== "" ? e.trim() : void 0;
 }
-function _r(e, t, n) {
+function vr(e, t, n) {
 	if (e === "none") return { action: "none" };
-	let r = gr(t);
+	let r = _r(t);
 	if (e === "navigate" && r) return {
 		action: "navigate",
 		navigation_path: r
 	};
-	let i = gr(n);
+	let i = _r(n);
 	if (e === "url" && i) return {
 		action: "url",
 		url_path: i
 	};
 }
-function vr(e) {
-	if (e.tap_action === "navigate" && !gr(e.navigation_path)) return "navigate";
-	if (e.tap_action === "url" && !gr(e.url_path)) return "url";
+function yr(e) {
+	if (e.tap_action === "navigate" && !_r(e.navigation_path)) return "navigate";
+	if (e.tap_action === "url" && !_r(e.url_path)) return "url";
 }
 function Z(e, t) {
 	if (e === t) return !0;
@@ -2197,15 +2212,15 @@ function Z(e, t) {
 	let n = Object.keys(e), r = Object.keys(t);
 	return n.length === r.length && n.every((n) => n in t && Z(e[n], t[n]));
 }
-function yr(e) {
+function br(e) {
 	return typeof e == "string" ? e : e.entity ?? "";
 }
-function br(e, t, n, r) {
+function xr(e, t, n, r) {
 	let i = /* @__PURE__ */ new Set(), a = n.map(() => void 0);
 	n.forEach((n, r) => {
-		let o = yr(n);
+		let o = br(n);
 		if (o === "") return;
-		let s = e.findIndex((e, n) => yr(e) === o && t[n] !== void 0 && !i.has(t[n]));
+		let s = e.findIndex((e, n) => br(e) === o && t[n] !== void 0 && !i.has(t[n]));
 		s >= 0 && (a[r] = t[s], i.add(t[s]));
 	});
 	let o = r;
@@ -2218,15 +2233,15 @@ function br(e, t, n, r) {
 		nextKey: o
 	};
 }
-function xr(e, t) {
+function Sr(e, t) {
 	return Z(e, t);
 }
-function Sr(e, t, n) {
+function Cr(e, t, n) {
 	let r = {};
-	for (let t of Kn) t in e && (r[t] = Zn(e[t]) ? void 0 : e[t]);
-	if (r.entity === void 0 && delete r.entity, "display" in e && (r.display = mr[e.display]), "tap_action" in e || "navigation_path" in e || "url_path" in e) {
+	for (let t of qn) t in e && (r[t] = Qn(e[t]) ? void 0 : e[t]);
+	if (r.entity === void 0 && delete r.entity, "display" in e && (r.display = hr[e.display]), "tap_action" in e || "navigation_path" in e || "url_path" in e) {
 		let i = t.tap_action, a = (t) => t in e ? e[t] : i && t in i ? i[t] : void 0;
-		r.tap_action = _r("tap_action" in e ? e.tap_action : n ?? i?.action ?? "more-info", a("navigation_path"), a("url_path"));
+		r.tap_action = vr("tap_action" in e ? e.tap_action : n ?? i?.action ?? "more-info", a("navigation_path"), a("url_path"));
 	}
 	return r;
 }
@@ -2234,19 +2249,19 @@ var Q = {
 	step: "any",
 	mode: "box"
 };
-function Cr(e, t) {
+function wr(e, t) {
 	return e.meters.filter((e, n) => n !== t).map((e) => typeof e == "string" ? e : e.entity).filter((e) => typeof e == "string" && e !== "");
 }
-function wr(e = []) {
+function Tr(e = []) {
 	let t = { filter: { domain: "sensor" } };
 	return e.length > 0 && (t.exclude_entities = e), { entity: t };
 }
-function Tr(e, t = []) {
+function Er(e, t = []) {
 	let n = [
 		{
 			name: "entity",
 			required: !0,
-			selector: wr(t)
+			selector: Tr(t)
 		},
 		{
 			name: "name",
@@ -2346,29 +2361,29 @@ function Tr(e, t = []) {
 		selector: { text: { type: "url" } }
 	}), n;
 }
-function Er(e) {
-	return String(sr(e));
+function Dr(e) {
+	return String(cr(e));
 }
-function Dr(e, t, n, r = {}, i) {
-	let a = t[e], o = a === void 0 || a === "", s = Gn.includes(e);
+function Or(e, t, n, r = {}, i) {
+	let a = t[e], o = a === void 0 || a === "", s = Kn.includes(e);
 	if (n?.twoSided && (e === "min" || s && !o)) return X.twoSided;
 	if (o) {
 		if (s && n) {
-			let t = `Default: ${Er(n.errors.includes("thresholds_order") ? Et(n.min, n.max)[e] : n[e])}`;
+			let t = `Default: ${Dr(n.errors.includes("thresholds_order") ? Et(n.min, n.max)[e] : n[e])}`;
 			return n.twoSided ? `${t} · two-sided, thresholds apply to |value|` : t;
 		}
-		if (e === "min") return `Default: ${qn}`;
-		if (e === "max") return `Default: ${Jn}`;
+		if (e === "min") return `Default: ${Jn}`;
+		if (e === "max") return `Default: ${Yn}`;
 		if (e === "color" && i !== void 0) return `Default: ${W(i)}`;
 		if (e === "name" && r.friendly_name) return `Default: ${r.friendly_name}`;
 		if (e === "unit" && r.unit_of_measurement) return `Default: ${r.unit_of_measurement}`;
 	}
 }
-function Or(e, t = {}) {
-	let n = $n(e);
+function kr(e, t = {}) {
+	let n = er(e);
 	return n.name || t.friendly_name || n.entity;
 }
-function kr(e, t) {
+function Ar(e, t) {
 	try {
 		return kt({
 			...e,
@@ -2378,9 +2393,9 @@ function kr(e, t) {
 		return;
 	}
 }
-function Ar() {
+function jr() {
 	return [
-		...Mr,
+		...Nr,
 		{
 			name: "chart",
 			selector: { select: {
@@ -2408,11 +2423,11 @@ function Ar() {
 		},
 		{
 			name: "total",
-			selector: wr()
+			selector: Tr()
 		}
 	];
 }
-var jr = [
+var Mr = [
 	"title",
 	"display",
 	"hours",
@@ -2421,7 +2436,7 @@ var jr = [
 	"chart",
 	"rows",
 	"total"
-], Mr = [
+], Nr = [
 	{
 		name: "title",
 		selector: { text: {} }
@@ -2467,21 +2482,21 @@ var jr = [
 		selector: { boolean: {} }
 	}
 ];
-function Nr(e) {
+function Pr(e) {
 	let t = {};
 	return e.title !== void 0 && (t.title = e.title), t.display = e.display ?? [...Y.display], t.hours = e.hours ?? Y.hours, t.sparkline_scale = e.sparkline_scale ?? Y.scale, t.blend = e.blend ?? Y.blend, t.chart = e.chart === void 0 ? [] : Array.isArray(e.chart) ? [...e.chart] : [e.chart], t.rows = e.rows ?? Y.rows, e.total !== void 0 && (t.total = e.total), t;
 }
-function Pr(e) {
+function Fr(e) {
 	let t = {};
-	for (let n of jr) n in e && (t[n] = Zn(e[n]) ? void 0 : e[n]);
+	for (let n of Mr) n in e && (t[n] = Qn(e[n]) ? void 0 : e[n]);
 	return t.rows === !0 && (t.rows = void 0), t;
 }
-function Fr(e, t, n) {
+function Ir(e, t, n) {
 	if (t !== void 0 && t !== "") return t;
 	let r = n?.states[e];
 	return r ? r.attributes.unit_of_measurement : null;
 }
-function Ir(e, t) {
+function Lr(e, t) {
 	if (e.chart === void 0) return [];
 	let n = [], { warnings: r } = kt({
 		type: "",
@@ -2489,9 +2504,9 @@ function Ir(e, t) {
 		meters: ["sensor.x"]
 	});
 	r.includes("chart_conflict") && n.push(X.chartConflict);
-	let i = e.meters.map($n).filter((e) => typeof e.entity == "string"), a = [], o = (e, n, r, i = "") => {
-		let o = Fr(e, n, t);
-		if (o === null || cn(o)) return;
+	let i = e.meters.map(er).filter((e) => typeof e.entity == "string"), a = [], o = (e, n, r, i = "") => {
+		let o = Ir(e, n, t);
+		if (o === null || ln(o)) return;
 		let s = r ?? t?.states[e]?.attributes.friendly_name ?? e;
 		a.push(`${s} (${o}${i})`);
 	};
@@ -2499,12 +2514,12 @@ function Ir(e, t) {
 	return e.total && o(e.total, void 0, void 0, ", total"), a.length > 0 && n.push(`${X.notInChart}: ${a.join(", ")}`), n;
 }
 // src/editor.ts
-var Lr = "M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z", Rr = "M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z", zr = "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z", Br = (e) => [{
+var Rr = "M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z", zr = "M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z", Br = "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z", Vr = (e) => [{
 	name: "entity",
-	selector: wr(Cr(e))
-}], Vr = (e) => customElements.get("ha-alert") ? C`<ha-alert class="warning" alert-type="warning">${e}</ha-alert>` : C`<div class="warning" role="alert">${e}</div>`, Hr = (e) => Yn[e.name] ?? e.name, Ur = () => customElements.get("ha-form") !== void 0 && customElements.get("ha-expansion-panel") !== void 0;
-async function Wr() {
-	if (Ur()) return !1;
+	selector: Tr(wr(e))
+}], Hr = (e) => customElements.get("ha-alert") ? C`<ha-alert class="warning" alert-type="warning">${e}</ha-alert>` : C`<div class="warning" role="alert">${e}</div>`, Ur = (e) => Xn[e.name] ?? e.name, Wr = () => customElements.get("ha-form") !== void 0 && customElements.get("ha-expansion-panel") !== void 0;
+async function Gr() {
+	if (Wr()) return !1;
 	try {
 		let e = await window.loadCardHelpers?.();
 		if (!e) return !1;
@@ -2517,7 +2532,7 @@ async function Wr() {
 		return !1;
 	}
 }
-var Gr = class extends A {
+var Kr = class extends A {
 	static properties = {
 		hass: { attribute: !1 },
 		config: { state: !0 },
@@ -2530,7 +2545,7 @@ var Gr = class extends A {
 		super(), this.pending = {};
 	}
 	connectedCallback() {
-		super.connectedCallback(), this.loadStarted || (this.loadStarted = !0, Wr().then((e) => {
+		super.connectedCallback(), this.loadStarted || (this.loadStarted = !0, Gr().then((e) => {
 			e && this.requestUpdate();
 		}));
 	}
@@ -2541,13 +2556,13 @@ var Gr = class extends A {
 		});
 	}
 	apply(e) {
-		let { keys: t, nextKey: n } = br(this.config?.meters ?? [], this.keys, e.meters, this.nextKey);
+		let { keys: t, nextKey: n } = xr(this.config?.meters ?? [], this.keys, e.meters, this.nextKey);
 		this.keys = t, this.nextKey = n;
 		let r = new Set(t), i = Object.fromEntries(Object.entries(this.pending).filter(([e]) => r.has(Number(e))));
 		Object.keys(i).length !== Object.keys(this.pending).length && (this.pending = i), this.config = e;
 	}
 	commit(e) {
-		this.config && xr(e, this.config) || (this.apply(e), this.dispatchEvent(new CustomEvent("config-changed", {
+		this.config && Sr(e, this.config) || (this.apply(e), this.dispatchEvent(new CustomEvent("config-changed", {
 			detail: { config: e },
 			bubbles: !0,
 			composed: !0
@@ -2558,29 +2573,29 @@ var Gr = class extends A {
 	}
 	onPanelChanged(e, t) {
 		t.stopPropagation();
-		let n = fr(Nr(e), t.detail.value);
-		this.commit(ar(e, Pr(n)));
+		let n = pr(Pr(e), t.detail.value);
+		this.commit(or(e, Fr(n)));
 	}
 	onColorChanged(e, t, n) {
 		n.stopPropagation();
 		let r = n.detail.value[t];
-		this.commit(or(e, t, typeof r == "string" ? r.trim() : void 0));
+		this.commit(sr(e, t, typeof r == "string" ? r.trim() : void 0));
 	}
 	onMeterChanged(e, t, n) {
 		n.stopPropagation();
-		let r = e.meters[t], i = typeof r == "string" ? { entity: r } : r, a = this.keys[t], o = this.pending[a], s = fr(hr(r, o), n.detail.value);
+		let r = e.meters[t], i = typeof r == "string" ? { entity: r } : r, a = this.keys[t], o = this.pending[a], s = pr(gr(r, o), n.detail.value);
 		if (Object.keys(s).length === 0) return;
-		let c = vr(n.detail.value);
+		let c = yr(n.detail.value);
 		if (c !== o) {
 			let e = { ...this.pending };
 			c ? e[a] = c : delete e[a], this.pending = e;
 		}
-		this.commit(ir(e, t, Sr(s, i, o)));
+		this.commit(ar(e, t, Cr(s, i, o)));
 	}
 	onAdd(e, t) {
 		t.stopPropagation();
 		let n = t.detail.value.entity;
-		typeof n == "string" && n !== "" && this.commit(tr(e, n));
+		typeof n == "string" && n !== "" && this.commit(nr(e, n));
 	}
 	onButton(e, t) {
 		e.stopPropagation(), this.commit(t());
@@ -2593,26 +2608,26 @@ var Gr = class extends A {
 		return e ? C`
       <div class="section">
         <h3>Panel</h3>
-        ${Ir(e, this.hass).map(Vr)}
+        ${Lr(e, this.hass).map(Hr)}
         <ha-form
           class="panel"
           .hass=${this.hass}
-          .data=${Nr(e)}
-          .schema=${Ar()}
-          .computeLabel=${Hr}
+          .data=${Pr(e)}
+          .schema=${jr()}
+          .computeLabel=${Ur}
           .computeHelper=${(e) => e.name === "hours" ? `Default: ${Y.hours}` : void 0}
           @value-changed=${(t) => this.onPanelChanged(e, t)}
         ></ha-form>
-        ${Wn.map((t) => this.renderColor(e, t))}
+        ${Gn.map((t) => this.renderColor(e, t))}
       </div>
       <div class="section">
         <h3>Meters</h3>
-        ${Un(e.meters, (e, t) => this.keys[t], (t, n) => this.renderMeter(e, n))}
+        ${Wn(e.meters, (e, t) => this.keys[t], (t, n) => this.renderMeter(e, n))}
         <ha-form
           class="add"
           .hass=${this.hass}
           .data=${{}}
-          .schema=${Br(e)}
+          .schema=${Vr(e)}
           .computeLabel=${() => "Add meter"}
           @value-changed=${(t) => this.onAdd(e, t)}
         ></ha-form>
@@ -2632,7 +2647,7 @@ var Gr = class extends A {
 			name: t,
 			selector: { text: {} }
 		}]}
-          .computeLabel=${() => Xn[t]}
+          .computeLabel=${() => Zn[t]}
           .computeHelper=${() => `Default: ${r}`}
           @value-changed=${(n) => this.onColorChanged(e, t, n)}
         ></ha-form>
@@ -2640,9 +2655,9 @@ var Gr = class extends A {
     `;
 	}
 	renderMeter(e, t) {
-		let n = e.meters[t], r = typeof n == "string" ? { entity: n } : n, i = this.attrs(r.entity), a = kr(e, t), o = hr(n, this.pending[this.keys[t]]), s = e.meters.length - 1;
+		let n = e.meters[t], r = typeof n == "string" ? { entity: n } : n, i = this.attrs(r.entity), a = Ar(e, t), o = gr(n, this.pending[this.keys[t]]), s = e.meters.length - 1;
 		return C`
-      <ha-expansion-panel outlined data-index=${t} .header=${Or(n, i)}>
+      <ha-expansion-panel outlined data-index=${t} .header=${kr(n, i)}>
         <div slot="icons" class="buttons" @click=${this.stop} @keydown=${this.stop}>
           <span
             class="swatch meter-swatch"
@@ -2652,33 +2667,33 @@ var Gr = class extends A {
           <ha-icon-button
             class="up"
             .label=${"Move up"}
-            .path=${Lr}
+            .path=${Rr}
             ?disabled=${t === 0}
-            @click=${(n) => this.onButton(n, () => rr(e, t, -1))}
+            @click=${(n) => this.onButton(n, () => ir(e, t, -1))}
           ></ha-icon-button>
           <ha-icon-button
             class="down"
             .label=${"Move down"}
-            .path=${Rr}
+            .path=${zr}
             ?disabled=${t === s}
-            @click=${(n) => this.onButton(n, () => rr(e, t, 1))}
+            @click=${(n) => this.onButton(n, () => ir(e, t, 1))}
           ></ha-icon-button>
           <ha-icon-button
             class="delete"
             .label=${"Remove meter"}
-            .path=${zr}
+            .path=${Br}
             ?disabled=${s === 0}
-            @click=${(n) => this.onButton(n, () => nr(e, t))}
+            @click=${(n) => this.onButton(n, () => rr(e, t))}
           ></ha-icon-button>
         </div>
         <ha-form
           class="meter"
           .hass=${this.hass}
           .data=${o}
-          .schema=${Tr(String(o.tap_action), Cr(e, t))}
-          .error=${a ? lr(a, r) : {}}
-          .computeLabel=${Hr}
-          .computeHelper=${(e) => Dr(e.name, r, a, i, t)}
+          .schema=${Er(String(o.tap_action), wr(e, t))}
+          .error=${a ? ur(a, r) : {}}
+          .computeLabel=${Ur}
+          .computeHelper=${(e) => Or(e.name, r, a, i, t)}
           @value-changed=${(n) => this.onMeterChanged(e, t, n)}
         ></ha-form>
         ${a ? this.renderBands(e, a) : E}
@@ -2686,12 +2701,12 @@ var Gr = class extends A {
     `;
 	}
 	renderBands(e, t) {
-		let n = cr(t), r = (t) => e.colors?.[t] || Y.colors[t];
+		let n = lr(t), r = (t) => e.colors?.[t] || Y.colors[t];
 		return C`<div
       class="bands"
       role="img"
       aria-label="Threshold preview"
-      style="background: linear-gradient(to right, ${Wn.map((e) => `${r(e)} ${n[e][0]}% ${n[e][1]}%`).join(", ")})"
+      style="background: linear-gradient(to right, ${Gn.map((e) => `${r(e)} ${n[e][0]}% ${n[e][1]}%`).join(", ")})"
     ></div>`;
 	}
 	static styles = s`
@@ -2746,10 +2761,10 @@ var Gr = class extends A {
       border-radius: 4px;
     }
   `;
-}, $ = "constant-powermeter-card", Kr = `${$}-editor`;
-console.info(`${$} v${e}`), customElements.get($) || customElements.define($, jn), customElements.get(Kr) || customElements.define(Kr, Gr);
-var qr = window;
-qr.customCards ??= [], qr.customCards.some((e) => e.type === $) || qr.customCards.push({
+}, $ = "constant-powermeter-card", qr = `${$}-editor`;
+console.info(`${$} v${e}`), customElements.get($) || customElements.define($, Mn), customElements.get(qr) || customElements.define(qr, Kr);
+var Jr = window;
+Jr.customCards ??= [], Jr.customCards.some((e) => e.type === $) || Jr.customCards.push({
 	type: $,
 	name: "Constant Powermeter Card",
 	preview: !0,
