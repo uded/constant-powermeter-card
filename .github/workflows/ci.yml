@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -33,4 +34,4 @@ jobs:
         run: task build
 
       - name: 🧾 Verify the committed bundle is up to date
-        run: git diff --exit-code dist/
+        run: git diff --exit-code dist/ && test -z "$(git status --porcelain dist/)"
