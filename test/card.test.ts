@@ -53,6 +53,11 @@ afterEach(() => {
 });
 
 describe('ConstantPowermeterCard', () => {
+  it('sizes itself for sections dashboards', () => {
+    const el = document.createElement('constant-powermeter-card') as ConstantPowermeterCard;
+    expect(el.getGridOptions()).toEqual({ columns: 12, rows: 'auto', min_columns: 6 });
+  });
+
   it('registers the element and the card picker entry', () => {
     expect(customElements.get('constant-powermeter-card')).toBe(ConstantPowermeterCard);
     const cards = (

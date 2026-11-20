@@ -713,13 +713,16 @@ function Je(e, t, n) {
 	};
 }
 // src/history.ts
-var Ye = 1e3, Xe = 6e4, Ze = 36e5;
-function Qe(e) {
+var Ye = 1e3, Xe = 6e4, Ze = 36e5, Qe = 3;
+function $e(e) {
+	return e === Qe || typeof e == "object" && !!e && e.code === Qe;
+}
+function et(e) {
 	if (e.trim() === "") return null;
 	let t = Number(e);
 	return Number.isFinite(t) ? t : null;
 }
-function $e(e, t) {
+function tt(e, t) {
 	let n = 0, r = e.length;
 	for (; n < r;) {
 		let i = n + r >>> 1;
@@ -727,29 +730,29 @@ function $e(e, t) {
 	}
 	return n;
 }
-function et(e, t) {
-	let n = $e(e, t.t);
+function nt(e, t) {
+	let n = tt(e, t.t);
 	n < e.length && e[n].t === t.t ? e[n] = t : e.splice(n, 0, t);
 }
-function tt(e, t) {
+function rt(e, t) {
 	if (t.states) for (let [n, r] of Object.entries(t.states)) {
 		let t = e.get(n);
 		for (let i of r) {
 			let r = i.lu ?? i.lc;
-			r !== void 0 && (t || (t = [], e.set(n, t)), et(t, {
+			r !== void 0 && (t || (t = [], e.set(n, t)), nt(t, {
 				t: r * 1e3,
-				v: Qe(i.s)
+				v: et(i.s)
 			}));
 		}
 	}
 }
-function nt(e, t) {
+function it(e, t) {
 	for (let n of e.values()) {
-		let e = $e(n, t);
+		let e = tt(n, t);
 		e > 1 && n.splice(0, e - 1);
 	}
 }
-var rt = class {
+var at = class {
 	conn;
 	onChange;
 	now;
@@ -793,8 +796,8 @@ var rt = class {
 		if (this.activeKey = n, this.activeIds = e, this.hours = t, e.length === 0) return;
 		this.listening ||= (this.conn.addEventListener("ready", this.onReady), !0);
 		let a = this.now() - t * Ze;
-		this.trimTimer = setInterval(() => nt(this.store, this.now() - this.hours * Ze), Xe), this.conn.subscribeMessage((e) => {
-			i === this.generation && (tt(this.store, e), this.onChange());
+		this.trimTimer = setInterval(() => it(this.store, this.now() - this.hours * Ze), Xe), this.conn.subscribeMessage((e) => {
+			i === this.generation && (rt(this.store, e), this.onChange());
 		}, {
 			type: "history/stream",
 			entity_ids: e,
@@ -805,7 +808,7 @@ var rt = class {
 		}, { resubscribe: !1 }).then((e) => {
 			i === this.generation ? this.unsub = e : e().catch(() => {});
 		}).catch((e) => {
-			i === this.generation && console.error("powermeter-card: history/stream subscription failed", e);
+			i === this.generation && !$e(e) && console.error("powermeter-card: history/stream subscription failed", e);
 		});
 	}
 }, U = {
@@ -824,12 +827,12 @@ var rt = class {
 		g: 68,
 		b: 55
 	}
-}, it = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i, at = /^rgba?\(\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/i, ot = /^var\(\s*(--[^,\s)]+)\s*(?:,[^)]*)?\)$/;
-function st(e) {
+}, ot = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i, st = /^rgba?\(\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*[, ]\s*(\d+(?:\.\d+)?)\s*(?:[,/]\s*[\d.]+%?\s*)?\)$/i, ct = /^var\(\s*(--[^,\s)]+)\s*(?:,[^)]*)?\)$/;
+function lt(e) {
 	return Math.max(0, Math.min(255, Math.round(e)));
 }
-function ct(e) {
-	let t = e.trim(), n = it.exec(t);
+function ut(e) {
+	let t = e.trim(), n = ot.exec(t);
 	if (n) {
 		let e = n[1];
 		return e.length === 3 && (e = [...e].map((e) => e + e).join("")), {
@@ -838,65 +841,65 @@ function ct(e) {
 			b: parseInt(e.slice(4, 6), 16)
 		};
 	}
-	let r = at.exec(t);
+	let r = st.exec(t);
 	return r ? {
-		r: st(Number(r[1])),
-		g: st(Number(r[2])),
-		b: st(Number(r[3]))
+		r: lt(Number(r[1])),
+		g: lt(Number(r[2])),
+		b: lt(Number(r[3]))
 	} : null;
 }
-var lt = "rgba(1, 2, 3, 0.004)", ut = /* @__PURE__ */ new WeakMap();
-function dt(e) {
-	let t = e.shadowRoot ?? e, n = ut.get(t);
+var dt = "rgba(1, 2, 3, 0.004)", ft = /* @__PURE__ */ new WeakMap();
+function pt(e) {
+	let t = e.shadowRoot ?? e, n = ft.get(t);
 	if (n?.parentElement?.parentNode !== t) {
 		let e = document.createElement("span");
-		e.setAttribute("aria-hidden", "true"), e.style.display = "none", e.style.color = lt, n = document.createElement("span"), e.append(n), t.append(e), ut.set(t, n);
+		e.setAttribute("aria-hidden", "true"), e.style.display = "none", e.style.color = dt, n = document.createElement("span"), e.append(n), t.append(e), ft.set(t, n);
 	}
 	return n;
 }
-function ft(e, t) {
-	let n = dt(e);
+function mt(e, t) {
+	let n = pt(e);
 	if (n.style.color = "", n.style.color = t, !n.style.color) return null;
 	let r = getComputedStyle(n).color.trim(), i = getComputedStyle(n.parentElement).color.trim();
-	return r === "" || r === i ? null : ct(r);
-}
-function pt(e, t, n) {
-	let r = t.trim(), i = r, a = ot.exec(i);
-	return a && (i = getComputedStyle(e).getPropertyValue(a[1]).trim()), ct(i) ?? ft(e, r) ?? n;
-}
-function mt(e, t) {
-	return {
-		normal: pt(e, t.normal, U.normal),
-		warning: pt(e, t.warning, U.warning),
-		critical: pt(e, t.critical, U.critical)
-	};
+	return r === "" || r === i ? null : ut(r);
 }
 function ht(e, t, n) {
+	let r = t.trim(), i = r, a = ct.exec(i);
+	return a && (i = getComputedStyle(e).getPropertyValue(a[1]).trim()), ut(i) ?? mt(e, r) ?? n;
+}
+function gt(e, t) {
+	return {
+		normal: ht(e, t.normal, U.normal),
+		warning: ht(e, t.warning, U.warning),
+		critical: ht(e, t.critical, U.critical)
+	};
+}
+function _t(e, t, n) {
 	return {
 		r: Math.round(e.r + (t.r - e.r) * n),
 		g: Math.round(e.g + (t.g - e.g) * n),
 		b: Math.round(e.b + (t.b - e.b) * n)
 	};
 }
-function gt(e, t, n) {
+function vt(e, t, n) {
 	return n > t ? (e - t) / (n - t) : 1;
 }
 function W(e) {
 	return `rgb(${e.r}, ${e.g}, ${e.b})`;
 }
-function _t(e, t, n, r) {
+function yt(e, t, n, r) {
 	let i = t.twoSided ? Math.abs(e) : e;
-	return r ? i <= t.normal ? W(n.normal) : i >= t.critical ? W(n.critical) : i <= t.warning ? W(ht(n.normal, n.warning, gt(i, t.normal, t.warning))) : W(ht(n.warning, n.critical, gt(i, t.warning, t.critical))) : i < t.warning ? W(n.normal) : i < t.critical ? W(n.warning) : W(n.critical);
+	return r ? i <= t.normal ? W(n.normal) : i >= t.critical ? W(n.critical) : i <= t.warning ? W(_t(n.normal, n.warning, vt(i, t.normal, t.warning))) : W(_t(n.warning, n.critical, vt(i, t.warning, t.critical))) : i < t.warning ? W(n.normal) : i < t.critical ? W(n.warning) : W(n.critical);
 }
 // src/sparkline.ts
-var G = 60, vt = 24;
-function yt(e, t, n, r, i) {
+var G = 60, bt = 24;
+function xt(e, t, n, r, i) {
 	let { lines: a, areas: o } = Je(e, n, {
 		w: G,
-		h: vt
-	}), s = `cpm-grad-${i}`, c = e.length, l = qe(0, n, vt);
+		h: bt
+	}), s = `cpm-grad-${i}`, c = e.length, l = qe(0, n, bt);
 	return E`
-    <svg viewBox="0 0 ${G} ${vt}" preserveAspectRatio="none">
+    <svg viewBox="0 0 ${G} ${bt}" preserveAspectRatio="none">
       <defs>
         <linearGradient id=${s} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2=${G} y2="0">
           ${e.map((e, n) => t[n] ?? t[t.length - 1] ?? "currentColor").map((e, t) => E`<stop offset=${c > 1 ? t / (c - 1) : 0} stop-color=${e}></stop>`)}
@@ -909,25 +912,25 @@ function yt(e, t, n, r, i) {
   `;
 }
 // src/card.ts
-var bt = 60, xt = 36e5, St = 10, Ct = "custom:constant-powermeter-card", wt = 15e3;
-function Tt() {
+var St = 60, Ct = 36e5, wt = 10, Tt = "custom:constant-powermeter-card", Et = 15e3;
+function Dt() {
 	return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? !1;
 }
-function Et(e) {
+function Ot(e) {
 	if (e === void 0 || e.trim() === "") return null;
 	let t = Number(e);
 	return Number.isFinite(t) ? t : null;
 }
-function Dt(e) {
-	return e === void 0 || !Number.isFinite(e) ? 0 : Math.min(St, Math.max(0, Math.round(e)));
+function kt(e) {
+	return e === void 0 || !Number.isFinite(e) ? 0 : Math.min(wt, Math.max(0, Math.round(e)));
 }
-function Ot(e, t, n, r) {
+function At(e, t, n, r) {
 	let i = e.find((e) => e !== null);
 	if (i === void 0) return [];
-	let a = _t(i, t, n, r);
-	return e.map((e) => (e !== null && (a = _t(e, t, n, r)), a));
+	let a = yt(i, t, n, r);
+	return e.map((e) => (e !== null && (a = yt(e, t, n, r)), a));
 }
-var kt = class extends F {
+var jt = class extends F {
 	static properties = {
 		hass: { attribute: !1 },
 		preview: { type: Boolean },
@@ -950,7 +953,7 @@ var kt = class extends F {
 	static getStubConfig(e) {
 		let t = Object.values(e.states).filter((e) => e.entity_id.startsWith("sensor."));
 		return {
-			type: Ct,
+			type: Tt,
 			meters: [(t.find((e) => e.attributes.device_class === "power" || e.attributes.unit_of_measurement === "W" || e.attributes.unit_of_measurement === "kW") ?? t[0])?.entity_id ?? "sensor.power"]
 		};
 	}
@@ -962,6 +965,13 @@ var kt = class extends F {
 		let e = this.config.meters.reduce((e, t) => e + (t.display.includes("bar") ? 2 : 1), 0);
 		return +!!this.config.title + Math.max(1, Math.ceil(e / 2));
 	}
+	getGridOptions() {
+		return {
+			columns: 12,
+			rows: "auto",
+			min_columns: 6
+		};
+	}
 	connectedCallback() {
 		super.connectedCallback(), this.syncHistory(), this.syncTick();
 	}
@@ -971,7 +981,7 @@ var kt = class extends F {
 	shownValue(e, t, n) {
 		if (t === null) return this.shown.delete(e), this.tweens.delete(e), null;
 		let r = this.shown.get(e);
-		if (r === void 0 || Tt()) return this.shown.set(e, t), this.tweens.delete(e), t;
+		if (r === void 0 || Dt()) return this.shown.set(e, t), this.tweens.delete(e), t;
 		let i = this.tweens.get(e);
 		if (!i || i.to !== t) {
 			if (!i && r === t) return t;
@@ -991,14 +1001,14 @@ var kt = class extends F {
 	}
 	syncTick() {
 		if (!this.isConnected || !this.config) return;
-		let e = Math.max(wt, this.config.hours * xt / bt);
+		let e = Math.max(Et, this.config.hours * Ct / St);
 		(this.tickTimer === void 0 || e !== this.tickMs) && (this.stopTick(), this.tickMs = e, this.tickTimer = setInterval(() => this.requestUpdate(), e));
 	}
 	stopTick() {
 		this.tickTimer !== void 0 && clearInterval(this.tickTimer), this.tickTimer = void 0, this.tickMs = 0;
 	}
 	syncHistory() {
-		this.isConnected && this.hass && this.config && (this.history ??= new rt(this.hass.connection, () => this.requestUpdate()), this.history.update(this.config.meters.map((e) => e.entity), this.config.hours));
+		this.isConnected && this.hass && this.config && (this.history ??= new at(this.hass.connection, () => this.requestUpdate()), this.history.update(this.config.meters.map((e) => e.entity), this.config.hours));
 	}
 	shouldUpdate(e) {
 		if (!e.has("hass") || e.size > 1) return !0;
@@ -1029,7 +1039,7 @@ var kt = class extends F {
 	render() {
 		let e = this.config;
 		if (!e || !this.hass) return O;
-		let t = this.palette ?? mt(this, e.colors);
+		let t = this.palette ?? gt(this, e.colors);
 		this.isConnected && (this.palette = t);
 		let n = Date.now();
 		return T`
@@ -1039,7 +1049,7 @@ var kt = class extends F {
     `;
 	}
 	renderRow(e, t, n, r, i) {
-		let a = this.hass.states[t.entity], o = Et(a?.state), s = this.shownValue(t.entity, o, i), c = t.name ?? a?.attributes.friendly_name ?? t.entity, l = t.unit ?? a?.attributes.unit_of_measurement ?? "", u = Dt(t.precision ?? this.hass.entities?.[t.entity]?.display_precision), d = this.clickable(t);
+		let a = this.hass.states[t.entity], o = Ot(a?.state), s = this.shownValue(t.entity, o, i), c = t.name ?? a?.attributes.friendly_name ?? t.entity, l = t.unit ?? a?.attributes.unit_of_measurement ?? "", u = kt(t.precision ?? this.hass.entities?.[t.entity]?.display_precision), d = this.clickable(t);
 		return T`
       <div
         class="row"
@@ -1063,17 +1073,17 @@ var kt = class extends F {
 	}
 	renderSpark(e, t, n, r, i, a) {
 		let o = Pe(this.history?.store.get(t.entity) ?? [], {
-			start: i - e.hours * xt,
+			start: i - e.hours * Ct,
 			end: i,
-			count: bt,
+			count: St,
 			twoSided: t.twoSided
 		});
-		return o[o.length - 1] = n, yt(o, Ot(o, t, r, e.blend), Ke(o, t, e.scale), t.twoSided, String(a));
+		return o[o.length - 1] = n, xt(o, At(o, t, r, e.blend), Ke(o, t, e.scale), t.twoSided, String(a));
 	}
 	renderBar(e, t, n, r) {
 		let i = t.twoSided ? Ge(0, t.min, t.max).zero : null, a = O;
 		if (n !== null) {
-			let i = Ge(n, t.min, t.max), o = _t(n, t, r, e.blend);
+			let i = Ge(n, t.min, t.max), o = yt(n, t, r, e.blend);
 			a = T`<div
         class="fill"
         style="left: ${i.left}%; width: ${i.width}%; background: ${o}"
@@ -1175,11 +1185,11 @@ var kt = class extends F {
       }
     }
   `;
-}, At = [
+}, Mt = [
 	"normal",
 	"warning",
 	"critical"
-], jt = At, Mt = [
+], Nt = Mt, Pt = [
 	"entity",
 	"name",
 	"unit",
@@ -1189,15 +1199,15 @@ var kt = class extends F {
 	"normal",
 	"warning",
 	"critical"
-], Nt = 0, K = V({
+], Ft = 0, K = V({
 	type: "",
 	meters: ["sensor.x"]
-}), Pt = K.meters[0].max, q = {
+}), It = K.meters[0].max, q = {
 	order: "Normal ≤ Warning ≤ Critical",
 	negative: "Use a positive value: two-sided thresholds apply to |value|",
 	range: "Max must be above Min",
 	twoSided: "Two-sided: thresholds apply to |value|"
-}, Ft = {
+}, Lt = {
 	title: "Title",
 	display: "Display",
 	hours: "Window (hours)",
@@ -1215,38 +1225,38 @@ var kt = class extends F {
 	tap_action: "Tap action",
 	navigation_path: "Navigation path",
 	url_path: "URL"
-}, It = {
+}, Rt = {
 	normal: "Normal color",
 	warning: "Warning color",
 	critical: "Critical color"
 };
-function Lt(e) {
+function zt(e) {
 	return e === void 0 || e === "" || Array.isArray(e) && e.length === 0;
 }
-function Rt(e, t) {
+function Bt(e, t) {
 	let n = { ...e };
-	for (let [e, r] of Object.entries(t)) Lt(r) ? delete n[e] : n[e] = r;
+	for (let [e, r] of Object.entries(t)) zt(r) ? delete n[e] : n[e] = r;
 	return n;
 }
-function zt(e) {
+function Vt(e) {
 	return typeof e == "string" ? { entity: e } : { ...e };
 }
 function J(e, t) {
 	return Number.isInteger(t) && t >= 0 && t < e.meters.length;
 }
-function Bt(e, t) {
+function Ht(e, t) {
 	return {
 		...e,
 		meters: [...e.meters, { entity: t }]
 	};
 }
-function Vt(e, t) {
+function Ut(e, t) {
 	return J(e, t) ? {
 		...e,
 		meters: e.meters.filter((e, n) => n !== t)
 	} : e;
 }
-function Ht(e, t, n) {
+function Wt(e, t, n) {
 	let r = t + n;
 	if (!J(e, t) || !J(e, r)) return e;
 	let i = [...e.meters];
@@ -1255,9 +1265,9 @@ function Ht(e, t, n) {
 		meters: i
 	};
 }
-function Ut(e, t, n) {
+function Gt(e, t, n) {
 	if (!J(e, t)) return e;
-	let r = zt(e.meters[t]), i = Rt(r, n);
+	let r = Vt(e.meters[t]), i = Bt(r, n);
 	if (X(r, i)) return e;
 	let a = [...e.meters];
 	return a[t] = i, {
@@ -1265,39 +1275,39 @@ function Ut(e, t, n) {
 		meters: a
 	};
 }
-function Wt(e, t) {
-	return Rt(e, t);
+function Kt(e, t) {
+	return Bt(e, t);
 }
-function Gt(e, t, n) {
-	let r = Rt(e.colors ?? {}, { [t]: n });
-	return Wt(e, { colors: Object.keys(r).length > 0 ? r : void 0 });
+function qt(e, t, n) {
+	let r = Bt(e.colors ?? {}, { [t]: n });
+	return Kt(e, { colors: Object.keys(r).length > 0 ? r : void 0 });
 }
-function Kt(e) {
+function Jt(e) {
 	return Math.round(e * 100) / 100;
 }
-function qt(e) {
-	let t = e.twoSided ? 0 : e.min, n = e.twoSided ? Math.max(-e.min, e.max) : e.max, r = (e) => Math.min(100, Math.max(0, Kt((e - t) * 100 / (n - t)))), i = r(e.normal), a = r(e.warning);
+function Yt(e) {
+	let t = e.twoSided ? 0 : e.min, n = e.twoSided ? Math.max(-e.min, e.max) : e.max, r = (e) => Math.min(100, Math.max(0, Jt((e - t) * 100 / (n - t)))), i = r(e.normal), a = r(e.warning);
 	return {
 		normal: [0, i],
 		warning: [i, a],
 		critical: [a, 100]
 	};
 }
-function Jt(e, t) {
+function Xt(e, t) {
 	let n = {};
 	if (e.errors.includes("range") && (n.max = q.range), e.errors.includes("thresholds_negative")) {
-		let e = jt.filter((e) => (t?.[e] ?? 0) < 0);
+		let e = Nt.filter((e) => (t?.[e] ?? 0) < 0);
 		for (let t of e.length > 0 ? e : ["normal"]) n[t] = q.negative;
 	}
 	if (e.errors.includes("thresholds_order")) {
-		let r = t ? Yt(t, e.twoSided) : [];
+		let r = t ? Zt(t, e.twoSided) : [];
 		for (let e of r.length > 0 ? r : ["warning"]) n[e] ??= q.order;
 	}
 	return n;
 }
-function Yt(e, t) {
+function Zt(e, t) {
 	let n = [], r = -Infinity;
-	for (let i of jt) {
+	for (let i of Nt) {
 		let a = e[i];
 		if (typeof a != "number" || !Number.isFinite(a)) continue;
 		let o = t ? Math.abs(a) : a;
@@ -1305,35 +1315,35 @@ function Yt(e, t) {
 	}
 	return n;
 }
-function Xt(e, t) {
+function Qt(e, t) {
 	return Array.isArray(e) && Array.isArray(t) ? e.length === t.length && e.every((e, n) => e === t[n]) : e === t;
 }
-function Zt(e, t) {
+function $t(e, t) {
 	let n = {};
-	for (let r of /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)])) Xt(e[r], t[r]) || (n[r] = t[r]);
+	for (let r of /* @__PURE__ */ new Set([...Object.keys(e), ...Object.keys(t)])) Qt(e[r], t[r]) || (n[r] = t[r]);
 	return n;
 }
-function Qt(e) {
+function en(e) {
 	let t = e?.includes("sparkline") ?? !1, n = e?.includes("bar") ?? !1;
 	return t && n ? "both" : t ? "sparkline" : n ? "bar" : "default";
 }
-var $t = {
+var tn = {
 	default: void 0,
 	sparkline: ["sparkline"],
 	bar: ["bar"],
 	both: ["sparkline", "bar"]
 };
-function en(e, t) {
-	let n = zt(e), r = {};
-	for (let e of Mt) n[e] !== void 0 && (r[e] = n[e]);
-	r.display = Qt(n.display);
+function nn(e, t) {
+	let n = Vt(e), r = {};
+	for (let e of Pt) n[e] !== void 0 && (r[e] = n[e]);
+	r.display = en(n.display);
 	let i = n.tap_action;
 	return r.tap_action = t ?? i?.action ?? "more-info", i?.action === "navigate" && (r.navigation_path = i.navigation_path), i?.action === "url" && (r.url_path = i.url_path), r;
 }
 function Y(e) {
 	return typeof e == "string" && e.trim() !== "" ? e.trim() : void 0;
 }
-function tn(e, t, n) {
+function rn(e, t, n) {
 	if (e === "none") return { action: "none" };
 	let r = Y(t);
 	if (e === "navigate" && r) return {
@@ -1346,7 +1356,7 @@ function tn(e, t, n) {
 		url_path: i
 	};
 }
-function nn(e) {
+function an(e) {
 	if (e.tap_action === "navigate" && !Y(e.navigation_path)) return "navigate";
 	if (e.tap_action === "url" && !Y(e.url_path)) return "url";
 }
@@ -1357,15 +1367,15 @@ function X(e, t) {
 	let n = Object.keys(e), r = Object.keys(t);
 	return n.length === r.length && n.every((n) => n in t && X(e[n], t[n]));
 }
-function rn(e, t) {
+function on(e, t) {
 	return X(e, t);
 }
-function an(e, t, n) {
+function sn(e, t, n) {
 	let r = {};
-	for (let t of Mt) t in e && (r[t] = Lt(e[t]) ? void 0 : e[t]);
-	if (r.entity === void 0 && delete r.entity, "display" in e && (r.display = $t[e.display]), "tap_action" in e || "navigation_path" in e || "url_path" in e) {
+	for (let t of Pt) t in e && (r[t] = zt(e[t]) ? void 0 : e[t]);
+	if (r.entity === void 0 && delete r.entity, "display" in e && (r.display = tn[e.display]), "tap_action" in e || "navigation_path" in e || "url_path" in e) {
 		let i = t.tap_action, a = (t) => t in e ? e[t] : i && t in i ? i[t] : void 0;
-		r.tap_action = tn("tap_action" in e ? e.tap_action : n ?? i?.action ?? "more-info", a("navigation_path"), a("url_path"));
+		r.tap_action = rn("tap_action" in e ? e.tap_action : n ?? i?.action ?? "more-info", a("navigation_path"), a("url_path"));
 	}
 	return r;
 }
@@ -1373,19 +1383,19 @@ var Z = {
 	step: "any",
 	mode: "box"
 };
-function on(e, t) {
+function cn(e, t) {
 	return e.meters.filter((e, n) => n !== t).map((e) => typeof e == "string" ? e : e.entity).filter((e) => typeof e == "string" && e !== "");
 }
-function sn(e = []) {
+function ln(e = []) {
 	let t = { filter: { domain: "sensor" } };
 	return e.length > 0 && (t.exclude_entities = e), { entity: t };
 }
-function cn(e, t = []) {
+function un(e, t = []) {
 	let n = [
 		{
 			name: "entity",
 			required: !0,
-			selector: sn(t)
+			selector: ln(t)
 		},
 		{
 			name: "name",
@@ -1481,28 +1491,28 @@ function cn(e, t = []) {
 		selector: { text: { type: "url" } }
 	}), n;
 }
-function ln(e) {
-	return String(Kt(e));
+function dn(e) {
+	return String(Jt(e));
 }
-function un(e, t, n, r = {}) {
-	let i = t[e], a = i === void 0 || i === "", o = jt.includes(e);
+function fn(e, t, n, r = {}) {
+	let i = t[e], a = i === void 0 || i === "", o = Nt.includes(e);
 	if (n?.twoSided && (e === "min" || o && !a)) return q.twoSided;
 	if (a) {
 		if (o && n) {
-			let t = `Default: ${ln(n.errors.includes("thresholds_order") ? Ve(n.min, n.max)[e] : n[e])}`;
+			let t = `Default: ${dn(n.errors.includes("thresholds_order") ? Ve(n.min, n.max)[e] : n[e])}`;
 			return n.twoSided ? `${t} · two-sided, thresholds apply to |value|` : t;
 		}
-		if (e === "min") return `Default: ${Nt}`;
-		if (e === "max") return `Default: ${Pt}`;
+		if (e === "min") return `Default: ${Ft}`;
+		if (e === "max") return `Default: ${It}`;
 		if (e === "name" && r.friendly_name) return `Default: ${r.friendly_name}`;
 		if (e === "unit" && r.unit_of_measurement) return `Default: ${r.unit_of_measurement}`;
 	}
 }
-function dn(e, t = {}) {
-	let n = zt(e);
+function pn(e, t = {}) {
+	let n = Vt(e);
 	return n.name || t.friendly_name || n.entity;
 }
-function fn(e, t) {
+function mn(e, t) {
 	try {
 		return V({
 			...e,
@@ -1512,7 +1522,7 @@ function fn(e, t) {
 		return;
 	}
 }
-var pn = [
+var hn = [
 	{
 		name: "title",
 		selector: { text: {} }
@@ -1558,22 +1568,22 @@ var pn = [
 		selector: { boolean: {} }
 	}
 ];
-function mn(e) {
+function gn(e) {
 	let t = {};
 	return e.title !== void 0 && (t.title = e.title), t.display = e.display ?? [...K.display], t.hours = e.hours ?? K.hours, t.sparkline_scale = e.sparkline_scale ?? K.scale, t.blend = e.blend ?? K.blend, t;
 }
-function hn(e) {
+function _n(e) {
 	let t = {};
-	for (let n of pn.map((e) => e.name)) n in e && (t[n] = Lt(e[n]) ? void 0 : e[n]);
+	for (let n of hn.map((e) => e.name)) n in e && (t[n] = zt(e[n]) ? void 0 : e[n]);
 	return t;
 }
 // src/editor.ts
-var gn = "M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z", _n = "M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z", vn = "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z", yn = (e) => [{
+var vn = "M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z", yn = "M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z", bn = "M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z", xn = (e) => [{
 	name: "entity",
-	selector: sn(on(e))
-}], bn = (e) => Ft[e.name] ?? e.name, xn = () => customElements.get("ha-form") !== void 0 && customElements.get("ha-expansion-panel") !== void 0;
-async function Sn() {
-	if (xn()) return !1;
+	selector: ln(cn(e))
+}], Sn = (e) => Lt[e.name] ?? e.name, Cn = () => customElements.get("ha-form") !== void 0 && customElements.get("ha-expansion-panel") !== void 0;
+async function wn() {
+	if (Cn()) return !1;
 	try {
 		let e = await window.loadCardHelpers?.();
 		if (!e) return !1;
@@ -1586,7 +1596,7 @@ async function Sn() {
 		return !1;
 	}
 }
-var Cn = class extends F {
+var Tn = class extends F {
 	static properties = {
 		hass: { attribute: !1 },
 		config: { state: !0 },
@@ -1597,7 +1607,7 @@ var Cn = class extends F {
 		super(), this.pending = {};
 	}
 	connectedCallback() {
-		super.connectedCallback(), this.loadStarted || (this.loadStarted = !0, Sn().then((e) => {
+		super.connectedCallback(), this.loadStarted || (this.loadStarted = !0, wn().then((e) => {
 			e && this.requestUpdate();
 		}));
 	}
@@ -1608,7 +1618,7 @@ var Cn = class extends F {
 		};
 	}
 	commit(e, t = !1) {
-		t && (this.pending = {}), this.config && rn(e, this.config) || (this.config = e, this.dispatchEvent(new CustomEvent("config-changed", {
+		t && (this.pending = {}), this.config && on(e, this.config) || (this.config = e, this.dispatchEvent(new CustomEvent("config-changed", {
 			detail: { config: e },
 			bubbles: !0,
 			composed: !0
@@ -1619,29 +1629,29 @@ var Cn = class extends F {
 	}
 	onPanelChanged(e, t) {
 		t.stopPropagation();
-		let n = Zt(mn(e), t.detail.value);
-		this.commit(Wt(e, hn(n)));
+		let n = $t(gn(e), t.detail.value);
+		this.commit(Kt(e, _n(n)));
 	}
 	onColorChanged(e, t, n) {
 		n.stopPropagation();
 		let r = n.detail.value[t];
-		this.commit(Gt(e, t, typeof r == "string" ? r.trim() : void 0));
+		this.commit(qt(e, t, typeof r == "string" ? r.trim() : void 0));
 	}
 	onMeterChanged(e, t, n) {
 		n.stopPropagation();
-		let r = e.meters[t], i = typeof r == "string" ? { entity: r } : r, a = this.pending[t], o = Zt(en(r, a), n.detail.value);
+		let r = e.meters[t], i = typeof r == "string" ? { entity: r } : r, a = this.pending[t], o = $t(nn(r, a), n.detail.value);
 		if (Object.keys(o).length === 0) return;
-		let s = nn(n.detail.value);
+		let s = an(n.detail.value);
 		if (s !== a) {
 			let e = { ...this.pending };
 			s ? e[t] = s : delete e[t], this.pending = e;
 		}
-		this.commit(Ut(e, t, an(o, i, a)));
+		this.commit(Gt(e, t, sn(o, i, a)));
 	}
 	onAdd(e, t) {
 		t.stopPropagation();
 		let n = t.detail.value.entity;
-		typeof n == "string" && n !== "" && this.commit(Bt(e, n), !0);
+		typeof n == "string" && n !== "" && this.commit(Ht(e, n), !0);
 	}
 	onButton(e, t) {
 		e.stopPropagation(), this.commit(t(), !0);
@@ -1657,13 +1667,13 @@ var Cn = class extends F {
         <ha-form
           class="panel"
           .hass=${this.hass}
-          .data=${mn(e)}
-          .schema=${pn}
-          .computeLabel=${bn}
+          .data=${gn(e)}
+          .schema=${hn}
+          .computeLabel=${Sn}
           .computeHelper=${(e) => e.name === "hours" ? `Default: ${K.hours}` : void 0}
           @value-changed=${(t) => this.onPanelChanged(e, t)}
         ></ha-form>
-        ${At.map((t) => this.renderColor(e, t))}
+        ${Mt.map((t) => this.renderColor(e, t))}
       </div>
       <div class="section">
         <h3>Meters</h3>
@@ -1672,7 +1682,7 @@ var Cn = class extends F {
           class="add"
           .hass=${this.hass}
           .data=${{}}
-          .schema=${yn(e)}
+          .schema=${xn(e)}
           .computeLabel=${() => "Add meter"}
           @value-changed=${(t) => this.onAdd(e, t)}
         ></ha-form>
@@ -1692,7 +1702,7 @@ var Cn = class extends F {
 			name: t,
 			selector: { text: {} }
 		}]}
-          .computeLabel=${() => It[t]}
+          .computeLabel=${() => Rt[t]}
           .computeHelper=${() => `Default: ${r}`}
           @value-changed=${(n) => this.onColorChanged(e, t, n)}
         ></ha-form>
@@ -1700,40 +1710,40 @@ var Cn = class extends F {
     `;
 	}
 	renderMeter(e, t) {
-		let n = e.meters[t], r = typeof n == "string" ? { entity: n } : n, i = this.attrs(r.entity), a = fn(e, t), o = en(n, this.pending[t]), s = e.meters.length - 1;
+		let n = e.meters[t], r = typeof n == "string" ? { entity: n } : n, i = this.attrs(r.entity), a = mn(e, t), o = nn(n, this.pending[t]), s = e.meters.length - 1;
 		return T`
-      <ha-expansion-panel outlined data-index=${t} .header=${dn(n, i)}>
+      <ha-expansion-panel outlined data-index=${t} .header=${pn(n, i)}>
         <div slot="icons" class="buttons" @click=${this.stop} @keydown=${this.stop}>
           <ha-icon-button
             class="up"
             .label=${"Move up"}
-            .path=${gn}
+            .path=${vn}
             ?disabled=${t === 0}
-            @click=${(n) => this.onButton(n, () => Ht(e, t, -1))}
+            @click=${(n) => this.onButton(n, () => Wt(e, t, -1))}
           ></ha-icon-button>
           <ha-icon-button
             class="down"
             .label=${"Move down"}
-            .path=${_n}
+            .path=${yn}
             ?disabled=${t === s}
-            @click=${(n) => this.onButton(n, () => Ht(e, t, 1))}
+            @click=${(n) => this.onButton(n, () => Wt(e, t, 1))}
           ></ha-icon-button>
           <ha-icon-button
             class="delete"
             .label=${"Remove meter"}
-            .path=${vn}
+            .path=${bn}
             ?disabled=${s === 0}
-            @click=${(n) => this.onButton(n, () => Vt(e, t))}
+            @click=${(n) => this.onButton(n, () => Ut(e, t))}
           ></ha-icon-button>
         </div>
         <ha-form
           class="meter"
           .hass=${this.hass}
           .data=${o}
-          .schema=${cn(String(o.tap_action), on(e, t))}
-          .error=${a ? Jt(a, r) : {}}
-          .computeLabel=${bn}
-          .computeHelper=${(e) => un(e.name, r, a, i)}
+          .schema=${un(String(o.tap_action), cn(e, t))}
+          .error=${a ? Xt(a, r) : {}}
+          .computeLabel=${Sn}
+          .computeHelper=${(e) => fn(e.name, r, a, i)}
           @value-changed=${(n) => this.onMeterChanged(e, t, n)}
         ></ha-form>
         ${a ? this.renderBands(e, a) : O}
@@ -1741,12 +1751,12 @@ var Cn = class extends F {
     `;
 	}
 	renderBands(e, t) {
-		let n = qt(t), r = (t) => e.colors?.[t] || K.colors[t];
+		let n = Yt(t), r = (t) => e.colors?.[t] || K.colors[t];
 		return T`<div
       class="bands"
       role="img"
       aria-label="Threshold preview"
-      style="background: linear-gradient(to right, ${At.map((e) => `${r(e)} ${n[e][0]}% ${n[e][1]}%`).join(", ")})"
+      style="background: linear-gradient(to right, ${Mt.map((e) => `${r(e)} ${n[e][0]}% ${n[e][1]}%`).join(", ")})"
     ></div>`;
 	}
 	static styles = s`
@@ -1789,8 +1799,8 @@ var Cn = class extends F {
       border-radius: 4px;
     }
   `;
-}, Q = "constant-powermeter-card", wn = `${Q}-editor`;
-console.info(`${Q} v${e}`), customElements.get(Q) || customElements.define(Q, kt), customElements.get(wn) || customElements.define(wn, Cn);
+}, Q = "constant-powermeter-card", En = `${Q}-editor`;
+console.info(`${Q} v${e}`), customElements.get(Q) || customElements.define(Q, jt), customElements.get(En) || customElements.define(En, Tn);
 var $ = window;
 $.customCards ??= [], $.customCards.some((e) => e.type === Q) || $.customCards.push({
 	type: Q,

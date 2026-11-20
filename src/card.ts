@@ -118,6 +118,14 @@ export class ConstantPowermeterCard extends LitElement {
     return (this.config.title ? 1 : 0) + Math.max(1, Math.ceil(lines / 2));
   }
 
+  /**
+   * getGridOptions sizes the card in sections dashboards: full width by default,
+   * at least half width so the sparkline stays readable, and height from content.
+   */
+  getGridOptions(): { columns: number; rows: 'auto'; min_columns: number } {
+    return { columns: 12, rows: 'auto', min_columns: 6 };
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
     this.syncHistory();
