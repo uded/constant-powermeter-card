@@ -163,6 +163,68 @@ describe('ConstantPowermeterCardEditor', () => {
     expect(events[0].detail.config).toEqual({ ...base, hours: 6 });
   });
 
+  it('writes chart, rows and total from the panel form', async () => {
+    const { el, events } = await mount(base);
+    const form = q(el, 'ha-form.panel');
+    expect(form.computeLabel({ name: 'rows' })).toBe('Show rows');
+    expect(form.computeLabel({ name: 'total' })).toBe('Total meter (optional)');
+    change(form, { ...form.data, chart: ['stacked'], rows: false, total: 'sensor.t' });
+    expect(events[0].detail.config).toEqual({
+      ...base,
+      chart: ['stacked'],
+      rows: false,
+      total: 'sensor.t',
+    });
+  });
+
+  it('shows config warnings above the panel form', async () => {
+    const { el } = await mount(base);
+    expect(el.shadowRoot!.querySelector('.warning')).toBeNull();
+    el.setConfig({ ...base, chart: ['stacked', 'lines'] });
+    await el.updateComplete;
+    const alerts = el.shadowRoot!.querySelectorAll('.warning');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].textContent).toContain('Stacked and Lines');
+    // Outside HA there is no ha-alert, so a plain element carries the text.
+    expect(alerts[0].tagName.toLowerCase()).toBe('div');
+    expect(alerts[0].nextElementSibling?.matches('ha-form.panel')).toBe(true);
+  });
+
+  it('uses ha-alert for warnings when HA defines it', async () => {
+    if (!customElements.get('ha-alert')) {
+      customElements.define('ha-alert', class extends HTMLElement {});
+    }
+    const { el } = await mount({ ...base, chart: ['stacked', 'lines'] });
+    const alert = q<HTMLElement>(el, '.warning');
+    expect(alert.tagName.toLowerCase()).toBe('ha-alert');
+    expect(alert.getAttribute('alert-type')).toBe('warning');
+  });
+
+  it('writes a meter color and shows its swatch and palette default', async () => {
+    const { el, events } = await mount(base);
+    const form = q(el, 'ha-form.meter');
+    expect(form.computeHelper({ name: 'color' })).toBe('Default: var(--graph-color-1, #44739e)');
+    expect(q<HTMLElement>(el, '.meter-swatch').getAttribute('style')).toContain(
+      'var(--graph-color-1, #44739e)',
+    );
+    change(form, { ...form.data, color: '#123456' });
+    expect(events[0].detail.config.meters[0]).toEqual({ entity: 'sensor.a', color: '#123456' });
+    await el.updateComplete;
+    expect(q<HTMLElement>(el, '.meter-swatch').getAttribute('style')).toContain('#123456');
+  });
+
+  it('hides the total from the meter pickers', async () => {
+    const { el } = await mount({ ...base, total: 'sensor.t' });
+    const entity = q(el, 'ha-form.meter').schema[0] as { selector?: unknown };
+    expect(entity.selector).toEqual({
+      entity: { filter: { domain: 'sensor' }, exclude_entities: ['sensor.t'] },
+    });
+    const add = q(el, 'ha-form.add').schema[0] as { selector?: unknown };
+    expect(add.selector).toEqual({
+      entity: { filter: { domain: 'sensor' }, exclude_entities: ['sensor.a', 'sensor.t'] },
+    });
+  });
+
   it('writes and clears a panel color', async () => {
     const { el, events } = await mount(base);
     change(q(el, 'ha-form.color-critical'), { critical: '#ff0000' });

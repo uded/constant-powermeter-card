@@ -15,13 +15,14 @@ import {
   meterPatch,
   meterSchema,
   entitySelector,
-  usedEntities,
+  meterExclusions,
   meterTitle,
   moveMeter,
   PANEL_DEFAULTS,
-  PANEL_SCHEMA,
   panelFormData,
   panelPatch,
+  panelSchema,
+  panelWarnings,
   patchCard,
   patchColor,
   patchMeter,
@@ -33,6 +34,7 @@ import {
   type FormData,
   type FormSchema,
 } from './editor-model';
+import { seriesColor } from './series';
 import type { HomeAssistant } from './types/ha';
 
 const ICON_UP = 'M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z';
@@ -41,8 +43,17 @@ const ICON_DELETE =
   'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z';
 
 const addSchema = (c: CardConfig): FormSchema[] => [
-  { name: 'entity', selector: entitySelector(usedEntities(c)) },
+  { name: 'entity', selector: entitySelector(meterExclusions(c)) },
 ];
+
+/**
+ * renderWarning shows one config warning as an ha-alert, or as a plain div outside HA,
+ * where ha-alert is not defined and would render nothing styled.
+ */
+const renderWarning = (message: string): TemplateResult =>
+  customElements.get('ha-alert')
+    ? html`<ha-alert class="warning" alert-type="warning">${message}</ha-alert>`
+    : html`<div class="warning" role="alert">${message}</div>`;
 
 type ValueChanged = CustomEvent<{ value: FormData }>;
 
@@ -200,11 +211,12 @@ export class ConstantPowermeterCardEditor extends LitElement {
     return html`
       <div class="section">
         <h3>Panel</h3>
+        ${panelWarnings(c, this.hass).map(renderWarning)}
         <ha-form
           class="panel"
           .hass=${this.hass}
           .data=${panelFormData(c)}
-          .schema=${PANEL_SCHEMA}
+          .schema=${panelSchema(c)}
           .computeLabel=${label}
           .computeHelper=${(s: FormSchema) =>
             s.name === 'hours' ? `Default: ${PANEL_DEFAULTS.hours}` : undefined}
@@ -260,6 +272,11 @@ export class ConstantPowermeterCardEditor extends LitElement {
     return html`
       <ha-expansion-panel outlined data-index=${i} .header=${meterTitle(raw, attrs)}>
         <div slot="icons" class="buttons" @click=${this.stop} @keydown=${this.stop}>
+          <span
+            class="swatch meter-swatch"
+            title="Series color"
+            style="background: ${seriesColor(i, obj.color)}"
+          ></span>
           <ha-icon-button
             class="up"
             .label=${'Move up'}
@@ -286,10 +303,10 @@ export class ConstantPowermeterCardEditor extends LitElement {
           class="meter"
           .hass=${this.hass}
           .data=${data}
-          .schema=${meterSchema(String(data.tap_action), usedEntities(c, i))}
+          .schema=${meterSchema(String(data.tap_action), meterExclusions(c, i))}
           .error=${resolved ? meterErrors(resolved, obj) : {}}
           .computeLabel=${label}
-          .computeHelper=${(s: FormSchema) => meterHelper(s.name, obj, resolved, attrs)}
+          .computeHelper=${(s: FormSchema) => meterHelper(s.name, obj, resolved, attrs, i)}
           @value-changed=${(e: ValueChanged) => this.onMeterChanged(c, i, e)}
         ></ha-form>
         ${resolved ? this.renderBands(c, resolved) : nothing}
@@ -338,6 +355,18 @@ export class ConstantPowermeterCardEditor extends LitElement {
     }
     .buttons {
       display: flex;
+      align-items: center;
+    }
+    .meter-swatch {
+      width: 16px;
+      height: 16px;
+      margin-right: 4px;
+    }
+    div.warning {
+      padding: 8px 12px;
+      border-radius: 4px;
+      border-left: 4px solid var(--warning-color);
+      background: rgba(var(--rgb-warning-color, 255, 166, 0), 0.12);
     }
     ha-expansion-panel ha-form {
       display: block;

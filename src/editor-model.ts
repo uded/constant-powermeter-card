@@ -8,6 +8,8 @@ import {
   type ResolvedMeter,
   type TapAction,
 } from './config';
+import { seriesColor, unitsCompatible } from './series';
+import type { HomeAssistant } from './types/ha';
 
 /** FormData is the flat object an `ha-form` edits. */
 export type FormData = Record<string, unknown>;
@@ -34,6 +36,7 @@ const PLAIN_METER_FIELDS = [
   'normal',
   'warning',
   'critical',
+  'color',
 ] as const;
 const DEFAULT_MIN = 0;
 
@@ -46,6 +49,8 @@ export const MESSAGES = {
   negative: 'Use a positive value: two-sided thresholds apply to |value|',
   range: 'Max must be above Min',
   twoSided: 'Two-sided: thresholds apply to |value|',
+  chartConflict: 'Stacked and Lines cannot be shown together; only the first one listed is shown',
+  units: 'Meters use different units; the combined chart may be misleading',
 };
 
 export const LABELS: Record<string, string> = {
@@ -54,6 +59,9 @@ export const LABELS: Record<string, string> = {
   hours: 'Window (hours)',
   sparkline_scale: 'Sparkline scale',
   blend: 'Blend between levels',
+  chart: 'Chart',
+  rows: 'Show rows',
+  total: 'Total meter (optional)',
   entity: 'Entity',
   name: 'Name',
   unit: 'Unit',
@@ -63,6 +71,7 @@ export const LABELS: Record<string, string> = {
   normal: 'Normal',
   warning: 'Warning',
   critical: 'Critical',
+  color: 'Color',
   tap_action: 'Tap action',
   navigation_path: 'Navigation path',
   url_path: 'URL',
@@ -372,6 +381,15 @@ export function usedEntities(c: CardConfig, skip?: number): string[] {
     .filter((id): id is string => typeof id === 'string' && id !== '');
 }
 
+/**
+ * meterExclusions is what a meter picker hides: the other meters (all of them for the add
+ * picker, when `skip` is undefined) and the total entity.
+ */
+export function meterExclusions(c: CardConfig, skip?: number): string[] {
+  const used = usedEntities(c, skip);
+  return c.total ? [...used, c.total] : used;
+}
+
 /** entitySelector picks a sensor, hiding the entities in `exclude`. */
 export function entitySelector(exclude: string[] = []): FormSchema['selector'] {
   const entity: Record<string, unknown> = { filter: { domain: 'sensor' } };
@@ -391,6 +409,7 @@ export function meterSchema(action: string, exclude: string[] = []): FormSchema[
     { name: 'normal', selector: { number: step } },
     { name: 'warning', selector: { number: step } },
     { name: 'critical', selector: { number: step } },
+    { name: 'color', selector: { text: {} } },
     {
       name: 'display',
       selector: {
@@ -434,12 +453,16 @@ export interface EntityAttributes {
   unit_of_measurement?: string;
 }
 
-/** meterHelper is the helper text for one meter field, or undefined for none. */
+/**
+ * meterHelper is the helper text for one meter field, or undefined for none. `index` is the
+ * meter's position, which picks its palette color.
+ */
 export function meterHelper(
   field: string,
   raw: MeterConfig,
   m: ResolvedMeter | undefined,
   attrs: EntityAttributes = {},
+  index?: number,
 ): string | undefined {
   const value = raw[field as keyof MeterConfig];
   const empty = value === undefined || value === '';
@@ -457,6 +480,7 @@ export function meterHelper(
   }
   if (field === 'min') return `Default: ${DEFAULT_MIN}`;
   if (field === 'max') return `Default: ${DEFAULT_MAX}`;
+  if (field === 'color' && index !== undefined) return `Default: ${seriesColor(index)}`;
   if (field === 'name' && attrs.friendly_name) return `Default: ${attrs.friendly_name}`;
   if (field === 'unit' && attrs.unit_of_measurement) {
     return `Default: ${attrs.unit_of_measurement}`;
@@ -479,8 +503,44 @@ export function resolveMeterAt(c: CardConfig, i: number): ResolvedMeter | undefi
   }
 }
 
-/** PANEL_SCHEMA is the panel form (colors have their own forms with swatches). */
-export const PANEL_SCHEMA: FormSchema[] = [
+/**
+ * panelSchema is the panel form (colors have their own forms with swatches). The total
+ * picker hides the meters' entities.
+ */
+export function panelSchema(c: CardConfig): FormSchema[] {
+  return [
+    ...PANEL_BASE_SCHEMA,
+    {
+      name: 'chart',
+      selector: {
+        select: {
+          multiple: true,
+          mode: 'list',
+          options: [
+            { value: 'stacked', label: 'Stacked' },
+            { value: 'lines', label: 'Lines' },
+            { value: 'donut', label: 'Donut' },
+          ],
+        },
+      },
+    },
+    { name: 'rows', selector: { boolean: {} } },
+    { name: 'total', selector: entitySelector(usedEntities(c)) },
+  ];
+}
+
+const PANEL_FIELDS = [
+  'title',
+  'display',
+  'hours',
+  'sparkline_scale',
+  'blend',
+  'chart',
+  'rows',
+  'total',
+] as const;
+
+const PANEL_BASE_SCHEMA: FormSchema[] = [
   { name: 'title', selector: { text: {} } },
   {
     name: 'display',
@@ -519,14 +579,48 @@ export function panelFormData(c: CardConfig): FormData {
   data.hours = c.hours ?? PANEL_DEFAULTS.hours;
   data.sparkline_scale = c.sparkline_scale ?? PANEL_DEFAULTS.scale;
   data.blend = c.blend ?? PANEL_DEFAULTS.blend;
+  data.chart = c.chart === undefined ? [] : Array.isArray(c.chart) ? [...c.chart] : [c.chart];
+  data.rows = c.rows ?? PANEL_DEFAULTS.rows;
+  if (c.total !== undefined) data.total = c.total;
   return data;
 }
 
 /** panelPatch turns a panel form diff into a CardConfig patch for patchCard. */
 export function panelPatch(diff: FormData): Partial<CardConfig> {
   const patch: FormData = {};
-  for (const k of PANEL_SCHEMA.map((s) => s.name)) {
+  for (const k of PANEL_FIELDS) {
     if (k in diff) patch[k] = isEmpty(diff[k]) ? undefined : diff[k];
   }
+  // rows defaults to true, so only rows: false is written.
+  if (patch.rows === true) patch.rows = undefined;
   return patch as Partial<CardConfig>;
+}
+
+/** unitOf is a meter's configured unit, else its entity's; null when HA does not know it. */
+function unitOf(
+  entity: string,
+  unit: string | undefined,
+  hass: HomeAssistant | undefined,
+): string | undefined | null {
+  if (unit !== undefined && unit !== '') return unit;
+  const st = hass?.states[entity];
+  return st ? st.attributes.unit_of_measurement : null;
+}
+
+/**
+ * panelWarnings lists the editor warnings for the combined charts: Stacked and Lines both
+ * chosen, and meters (plus the total) whose units cannot be converted to one another. Entities
+ * HA does not know yet are left out of the unit check.
+ */
+export function panelWarnings(c: CardConfig, hass?: HomeAssistant): string[] {
+  if (c.chart === undefined) return [];
+  const out: string[] = [];
+  const { warnings } = normalizeConfig({ type: '', chart: c.chart, meters: ['sensor.x'] });
+  if (warnings.includes('chart_conflict')) out.push(MESSAGES.chartConflict);
+  const entries = c.meters.map(toMeterObject).filter((m) => typeof m.entity === 'string');
+  const units = entries.map((m) => unitOf(m.entity, m.unit, hass));
+  if (c.total) units.push(unitOf(c.total, undefined, hass));
+  const known = units.filter((u): u is string | undefined => u !== null);
+  if (!unitsCompatible(known)) out.push(MESSAGES.units);
+  return out;
 }

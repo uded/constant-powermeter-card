@@ -12,10 +12,14 @@ import {
   meterSchema,
   entitySelector,
   usedEntities,
+  meterExclusions,
   meterTitle,
   moveMeter,
   panelFormData,
   panelPatch,
+  panelSchema,
+  panelWarnings,
+  MESSAGES,
   patchCard,
   patchColor,
   patchMeter,
@@ -23,6 +27,7 @@ import {
   rekeyMeters,
   removeMeter,
 } from '../src/editor-model';
+import { seriesColor } from '../src/series';
 
 describe('rekeyMeters', () => {
   const old = ['sensor.a', { entity: 'sensor.b' }, 'sensor.c'];
@@ -313,6 +318,20 @@ describe('meter form', () => {
     expect(meterHelper('name', { ...raw, name: 'K' }, resolve(raw), attrs)).toBeUndefined();
   });
 
+  it('shows the palette default for an empty meter color', () => {
+    const raw: MeterConfig = { entity: 'a' };
+    expect(meterHelper('color', raw, undefined, {}, 0)).toBe(`Default: ${seriesColor(0)}`);
+    expect(meterHelper('color', raw, undefined, {}, 3)).toBe(`Default: ${seriesColor(3)}`);
+    expect(meterHelper('color', { ...raw, color: '#f00' }, undefined, {}, 0)).toBeUndefined();
+  });
+
+  it('reads and writes the meter color', () => {
+    expect(meterFormData({ entity: 'a', color: '#f00' })).toMatchObject({ color: '#f00' });
+    expect(meterPatch({ color: '#0f0' }, { entity: 'a' })).toEqual({ color: '#0f0' });
+    expect(meterPatch({ color: '' }, { entity: 'a', color: '#0f0' })).toEqual({ color: undefined });
+    expect(meterSchema('more-info').map((s) => s.name)).toContain('color');
+  });
+
   it('titles a meter by name, friendly name, then entity id', () => {
     expect(meterTitle({ entity: 'a', name: 'K' }, { friendly_name: 'F' })).toBe('K');
     expect(meterTitle('a', { friendly_name: 'F' })).toBe('F');
@@ -327,7 +346,71 @@ describe('panel form', () => {
       hours: 1,
       sparkline_scale: 'fixed',
       blend: true,
+      chart: [],
+      rows: true,
     });
+    expect(panelFormData({ type: 'x', chart: 'donut', total: 't', meters: ['a'] })).toMatchObject({
+      chart: ['donut'],
+      total: 't',
+    });
+  });
+
+  it('writes and clears chart, rows and total', () => {
+    expect(panelPatch({ chart: ['stacked', 'donut'] })).toEqual({ chart: ['stacked', 'donut'] });
+    expect(panelPatch({ chart: [] })).toEqual({ chart: undefined });
+    expect(panelPatch({ rows: true })).toEqual({ rows: undefined }); // default not written
+    expect(panelPatch({ rows: false })).toEqual({ rows: false });
+    expect(panelPatch({ total: '' })).toEqual({ total: undefined });
+    expect(panelPatch({ total: 'sensor.t' })).toEqual({ total: 'sensor.t' });
+  });
+
+  it('the total picker hides the meters, the meter pickers hide the total', () => {
+    const c: CardConfig = {
+      type: 'x',
+      total: 'sensor.t',
+      meters: ['sensor.a', { entity: 'sensor.b' }],
+    };
+    expect(panelSchema(c).find((s) => s.name === 'total')?.selector).toEqual({
+      entity: { filter: { domain: 'sensor' }, exclude_entities: ['sensor.a', 'sensor.b'] },
+    });
+    expect(panelSchema(c).find((s) => s.name === 'chart')?.selector).toMatchObject({
+      select: { multiple: true },
+    });
+    expect(meterExclusions(c, 0)).toEqual(['sensor.b', 'sensor.t']);
+    expect(meterExclusions(c)).toEqual(['sensor.a', 'sensor.b', 'sensor.t']);
+    expect(meterExclusions({ type: 'x', meters: ['sensor.a'] }, 0)).toEqual([]);
+  });
+
+  it('warns on stacked + lines and on incompatible units', () => {
+    expect(panelWarnings({ type: 'x', chart: ['stacked', 'lines'], meters: ['a'] })).toHaveLength(
+      1,
+    );
+    const hass = {
+      states: {
+        a: { attributes: { unit_of_measurement: 'W' } },
+        b: { attributes: { unit_of_measurement: 'A' } },
+        k: { attributes: { unit_of_measurement: 'kW' } },
+      },
+    } as never;
+    expect(panelWarnings({ type: 'x', chart: 'donut', meters: ['a', 'b'] }, hass)).toEqual([
+      MESSAGES.units,
+    ]);
+    // W and kW convert; a configured unit overrides the entity's; no chart, no warning.
+    expect(panelWarnings({ type: 'x', chart: 'donut', meters: ['a', 'k'] }, hass)).toEqual([]);
+    const overridden: CardConfig = {
+      type: 'x',
+      chart: 'donut',
+      meters: ['a', { entity: 'b', unit: 'W' }],
+    };
+    expect(panelWarnings(overridden, hass)).toEqual([]);
+    expect(panelWarnings({ type: 'x', meters: ['a', 'b'] }, hass)).toEqual([]);
+    // The total joins the combined chart; an entity HA does not know is skipped.
+    const withTotal: CardConfig = { type: 'x', chart: 'stacked', total: 'b', meters: ['a', 'z'] };
+    expect(panelWarnings(withTotal, hass)).toEqual([MESSAGES.units]);
+    expect(panelWarnings({ ...withTotal, total: undefined }, hass)).toEqual([]);
+    expect(panelWarnings({ type: 'x', chart: ['lines', 'stacked'], meters: [] })).toEqual([
+      MESSAGES.chartConflict,
+    ]);
   });
 
   it('panelPatch clears an empty display selection', () => {
