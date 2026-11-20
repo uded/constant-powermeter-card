@@ -1,3 +1,5 @@
+import type { HaLocale } from '../format';
+
 export interface HassEntity {
   entity_id: string;
   state: string;
@@ -27,6 +29,6 @@ export interface HomeAssistant {
   states: Record<string, HassEntity>;
   entities?: Record<string, { display_precision?: number }>;
   themes: { darkMode: boolean; [k: string]: unknown };
-  locale?: { language: string };
+  locale?: HaLocale;
   connection: HaConnection;
 }

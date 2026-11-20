@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing, type PropertyValues, type TemplateResul
 import { runTapAction } from './actions';
 import { bucketize } from './buckets';
 import { normalizeConfig, type CardConfig, type ResolvedCard, type ResolvedMeter } from './config';
+import { numberFormat } from './format';
 import { barGeometry, sparklineRange } from './geometry';
 import { StreamHistorySource } from './history';
 import { levelColor, resolvePalette, type Palette } from './levels';
@@ -227,13 +228,15 @@ export class ConstantPowermeterCard extends LitElement {
   }
 
   private format(value: number, precision: number): string {
-    const lang = this.hass?.locale?.language;
-    const key = `${lang ?? ''}|${precision}`;
+    const locale = this.hass?.locale;
+    const key = `${locale?.language ?? ''}|${locale?.number_format ?? ''}|${precision}`;
     let f = this.formats.get(key);
     if (!f) {
-      f = new Intl.NumberFormat(lang, {
+      const { locales, useGrouping } = numberFormat(locale);
+      f = new Intl.NumberFormat(locales, {
         minimumFractionDigits: precision,
         maximumFractionDigits: precision,
+        useGrouping,
       });
       this.formats.set(key, f);
     }

@@ -60,6 +60,15 @@ describe('ConstantPowermeterCard', () => {
     expect(['none', 'contents']).not.toContain(getComputedStyle(line).display);
   });
 
+  it("formats values with HA's number format setting", async () => {
+    const hass = makeHass({ 'sensor.a': kitchen });
+    const el = await mount(
+      { meters: ['sensor.a'] },
+      { ...hass, locale: { language: 'en', number_format: 'decimal_comma' } },
+    );
+    expect(rows(el)[0].querySelector('.value')!.textContent).toContain('1.240');
+  });
+
   it('sizes itself for sections dashboards', () => {
     const el = document.createElement('constant-powermeter-card') as ConstantPowermeterCard;
     expect(el.getGridOptions()).toEqual({ columns: 12, rows: 'auto', min_columns: 6 });
