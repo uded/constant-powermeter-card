@@ -12,6 +12,8 @@ const BUCKETS = 60;
 const HOUR_MS = 3_600_000;
 const MAX_PRECISION = 10;
 const CARD_TYPE = 'custom:constant-powermeter-card';
+/** The sparkline window is re-rendered at least this rarely, so a steady sensor still scrolls. */
+const MIN_TICK_MS = 15_000;
 
 /** parseState returns the numeric value of an entity state, or null when it is not a number. */
 function parseState(s: string | undefined): number | null {
@@ -59,6 +61,8 @@ export class ConstantPowermeterCard extends LitElement {
 
   private palette?: Palette;
   private history?: StreamHistorySource;
+  private tickTimer?: ReturnType<typeof setInterval>;
+  private tickMs = 0;
   private readonly formats = new Map<string, Intl.NumberFormat>();
 
   constructor() {
@@ -88,6 +92,7 @@ export class ConstantPowermeterCard extends LitElement {
     this.config = normalizeConfig(raw);
     this.palette = undefined;
     this.syncHistory();
+    this.syncTick();
   }
 
   /** getCardSize estimates the height in 50 px units. */
@@ -100,12 +105,33 @@ export class ConstantPowermeterCard extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this.syncHistory();
+    this.syncTick();
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.history?.close();
     this.history = undefined;
+    this.stopTick();
+  }
+
+  /**
+   * Re-renders once per bucket width so the sparkline window keeps moving when
+   * neither hass.states nor history/stream report anything (a steady sensor).
+   */
+  private syncTick(): void {
+    if (!this.isConnected || !this.config) return;
+    const ms = Math.max(MIN_TICK_MS, (this.config.hours * HOUR_MS) / BUCKETS);
+    if (this.tickTimer !== undefined && ms === this.tickMs) return;
+    this.stopTick();
+    this.tickMs = ms;
+    this.tickTimer = setInterval(() => this.requestUpdate(), ms);
+  }
+
+  private stopTick(): void {
+    if (this.tickTimer !== undefined) clearInterval(this.tickTimer);
+    this.tickTimer = undefined;
+    this.tickMs = 0;
   }
 
   /** Creates the history source once connected with hass and config, then (re)targets it. */
@@ -149,13 +175,17 @@ export class ConstantPowermeterCard extends LitElement {
     return f.format(value);
   }
 
+  private clickable(m: ResolvedMeter): boolean {
+    return !this.preview && m.tapAction.action !== 'none';
+  }
+
   private act(ev: Event, m: ResolvedMeter): void {
-    if (this.preview || m.tapAction.action === 'none') return;
+    if (!this.clickable(m)) return;
     runTapAction(ev.currentTarget as HTMLElement, m.tapAction, m.entity);
   }
 
   private onKey(ev: KeyboardEvent, m: ResolvedMeter): void {
-    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    if ((ev.key !== 'Enter' && ev.key !== ' ') || ev.repeat) return;
     ev.preventDefault();
     this.act(ev, m);
   }
@@ -163,13 +193,13 @@ export class ConstantPowermeterCard extends LitElement {
   protected render(): TemplateResult | typeof nothing {
     const cfg = this.config;
     if (!cfg || !this.hass) return nothing;
-    this.palette ??= resolvePalette(this, cfg.colors);
+    // getComputedStyle is empty while disconnected, so only cache a palette resolved when connected.
+    const palette = this.palette ?? resolvePalette(this, cfg.colors);
+    if (this.isConnected) this.palette = palette;
     const now = Date.now();
     return html`
       <ha-card .header=${cfg.title}>
-        <div class="rows">
-          ${cfg.meters.map((m, i) => this.renderRow(cfg, m, i, this.palette!, now))}
-        </div>
+        <div class="rows">${cfg.meters.map((m, i) => this.renderRow(cfg, m, i, palette, now))}</div>
       </ha-card>
     `;
   }
@@ -188,7 +218,7 @@ export class ConstantPowermeterCard extends LitElement {
     const precision = clampPrecision(
       m.precision ?? this.hass!.entities?.[m.entity]?.display_precision,
     );
-    const clickable = m.tapAction.action !== 'none';
+    const clickable = this.clickable(m);
 
     return html`
       <div
@@ -232,7 +262,8 @@ export class ConstantPowermeterCard extends LitElement {
       count: BUCKETS,
       twoSided: m.twoSided,
     });
-    if (value !== null) buckets[buckets.length - 1] = value;
+    // The live state always drives the end point, including a gap when it is not numeric.
+    buckets[buckets.length - 1] = value;
     return renderSparkline(
       buckets,
       bucketColors(buckets, m, palette, cfg.blend),

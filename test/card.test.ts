@@ -32,6 +32,16 @@ async function mount(config: Record<string, unknown>, hass: HomeAssistant) {
   return el;
 }
 
+/** Points of every sparkline line path in the card, in document order. */
+function linePoints(el: HTMLElement): { x: number; y: number }[] {
+  return [...el.shadowRoot!.querySelectorAll('path.line')].flatMap((p) =>
+    [...p.getAttribute('d')!.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => ({
+      x: Number(m[1]),
+      y: Number(m[2]),
+    })),
+  );
+}
+
 function rows(el: HTMLElement): HTMLElement[] {
   return [...el.shadowRoot!.querySelectorAll<HTMLElement>('.row')];
 }
@@ -133,7 +143,10 @@ describe('ConstantPowermeterCard', () => {
 
     el.preview = true;
     await el.updateComplete;
+    expect(rows(el)[0].hasAttribute('role')).toBe(false);
+    expect(rows(el)[0].hasAttribute('tabindex')).toBe(false);
     rows(el)[0].click();
+    rows(el)[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     document.removeEventListener('hass-more-info', spy);
     expect(spy).toHaveBeenCalledTimes(1);
   });
@@ -154,6 +167,9 @@ describe('ConstantPowermeterCard', () => {
     active.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     active.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
     active.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    active.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true }),
+    );
     inert.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     inert.click();
     document.removeEventListener('hass-more-info', spy);
@@ -206,10 +222,108 @@ describe('ConstantPowermeterCard', () => {
     expect(conn.calls).toHaveLength(1);
     expect(conn.calls[0].msg.entity_ids).toEqual(['sensor.a']);
 
+    // Without history only the live value (one point at the right edge) would be drawn.
+    expect(linePoints(el).every((p) => p.x === 60)).toBe(true);
+
     conn.push({ states: { 'sensor.a': [{ s: '100', lu: (Date.now() - 1_800_000) / 1000 }] } });
     await el.updateComplete;
-    const line = el.shadowRoot!.querySelector('path.line');
-    expect(line).not.toBeNull();
+    const pts = linePoints(el);
+    expect(el.shadowRoot!.querySelectorAll('path.line')).toHaveLength(2); // one per meter row
+    const first = pts[0];
+    expect(first.x).toBeGreaterThan(29);
+    expect(first.x).toBeLessThan(31);
+    expect(pts.length).toBeGreaterThan(20);
+  });
+
+  it('ends the sparkline in a gap when the live state is not numeric', async () => {
+    vi.useFakeTimers();
+    const conn = mockConnection();
+    const hass = makeHass({ 'sensor.a': entity('sensor.a', 'unavailable') }, conn);
+    const el = await mount({ display: ['sparkline'], meters: ['sensor.a'] }, hass);
+    await vi.advanceTimersByTimeAsync(1000);
+    conn.push({ states: { 'sensor.a': [{ s: '100', lu: (Date.now() - 1_800_000) / 1000 }] } });
+    await el.updateComplete;
+    const xs = linePoints(el).map((p) => p.x);
+    expect(xs.length).toBeGreaterThan(2);
+    expect(Math.max(...xs)).toBeLessThan(60);
+  });
+
+  it('scrolls the sparkline window on a steady sensor with no new states', async () => {
+    vi.useFakeTimers();
+    const conn = mockConnection();
+    const hass = makeHass({ 'sensor.a': entity('sensor.a', '100') }, conn);
+    const el = await mount({ display: ['sparkline'], hours: 1, meters: ['sensor.a'] }, hass);
+    await vi.advanceTimersByTimeAsync(1000);
+    const now = Date.now();
+    conn.push({
+      states: {
+        'sensor.a': [
+          { s: '4000', lu: (now - 50 * 60_000) / 1000 },
+          { s: '100', lu: (now - 49 * 60_000) / 1000 },
+        ],
+      },
+    });
+    await el.updateComplete;
+    const before = linePoints(el);
+    expect(before[0].x).toBeGreaterThan(9); // gap before the first sample
+    expect(Math.min(...before.map((p) => p.y))).toBeLessThan(6); // the 4000 W spike
+
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    await el.updateComplete;
+    const after = linePoints(el);
+    expect(after[0].x).toBe(0); // the window moved past the first sample
+    expect(Math.min(...after.map((p) => p.y))).toBeGreaterThan(20); // spike scrolled out
+  });
+
+  it('stops the refresh timer on disconnect', async () => {
+    vi.useFakeTimers();
+    const el = await mount({ meters: ['sensor.a'] }, makeHass({ 'sensor.a': kitchen }));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    const spy = vi.spyOn(el as unknown as { render: () => unknown }, 'render');
+    el.remove();
+    expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('subscribes again after being re-attached', async () => {
+    vi.useFakeTimers();
+    const conn = mockConnection();
+    const el = await mount(
+      { display: ['sparkline'], meters: ['sensor.a'] },
+      makeHass({ 'sensor.a': kitchen }, conn),
+    );
+    await vi.advanceTimersByTimeAsync(1000);
+    el.remove();
+    expect(conn.calls[0].unsub).toHaveBeenCalledTimes(1);
+
+    document.body.append(el);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.calls).toHaveLength(2);
+    conn.push({ states: { 'sensor.a': [{ s: '100', lu: (Date.now() - 1_800_000) / 1000 }] } });
+    await el.updateComplete;
+    expect(linePoints(el).length).toBeGreaterThan(20);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+  });
+
+  it('subscribes when hass arrives after the element is connected', async () => {
+    vi.useFakeTimers();
+    const conn = mockConnection();
+    const el = document.createElement('constant-powermeter-card') as ConstantPowermeterCard;
+    el.setConfig({ type: 'custom:constant-powermeter-card', meters: ['sensor.a'] });
+    document.body.append(el);
+    await el.updateComplete;
+    expect(rows(el)).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.calls).toHaveLength(0);
+
+    el.hass = makeHass({ 'sensor.a': kitchen }, conn);
+    await el.updateComplete;
+    expect(rows(el)).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.calls).toHaveLength(1);
+    expect(conn.calls[0].msg.entity_ids).toEqual(['sensor.a']);
   });
 
   it('resubscribes when the config changes the entity set', async () => {
