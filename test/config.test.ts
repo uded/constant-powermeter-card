@@ -136,4 +136,51 @@ describe('normalizeConfig', () => {
     });
     expect(c.meters.map((m) => m.display)).toEqual([['bar'], ['sparkline']]);
   });
+
+  it('has no chart by default and keeps rows', () => {
+    const c = normalizeConfig({ type: 'x', meters: ['sensor.a'] });
+    expect(c).toMatchObject({ timeChart: undefined, donut: false, rows: true, warnings: [] });
+    expect(c.total).toBeUndefined();
+  });
+
+  it('accepts one chart or a list', () => {
+    expect(normalizeConfig({ type: 'x', chart: 'donut', meters: ['a'] })).toMatchObject({
+      donut: true,
+      timeChart: undefined,
+    });
+    expect(
+      normalizeConfig({ type: 'x', chart: ['stacked', 'donut'], meters: ['a'] }),
+    ).toMatchObject({ timeChart: 'stacked', donut: true });
+  });
+
+  it('keeps the first time chart and warns on stacked + lines', () => {
+    const c = normalizeConfig({ type: 'x', chart: ['lines', 'stacked'], meters: ['a'] });
+    expect(c.timeChart).toBe('lines');
+    expect(c.warnings).toContain('chart_conflict');
+  });
+
+  it('drops unknown chart values and forces rows on without a chart', () => {
+    expect(normalizeConfig({ type: 'x', chart: ['radial'], meters: ['a'] })).toMatchObject({
+      timeChart: undefined,
+      donut: false,
+    });
+    expect(normalizeConfig({ type: 'x', rows: false, meters: ['a'] }).rows).toBe(true);
+    expect(normalizeConfig({ type: 'x', chart: 'donut', rows: false, meters: ['a'] }).rows).toBe(
+      false,
+    );
+  });
+
+  it('passes total and meter color through', () => {
+    const c = normalizeConfig({
+      type: 'x',
+      total: 'sensor.t',
+      meters: [
+        { entity: 'a', color: '#123456' },
+        { entity: 'b', color: '' },
+      ],
+    });
+    expect(c.total).toBe('sensor.t');
+    expect(c.meters[0].color).toBe('#123456');
+    expect(c.meters[1].color).toBeUndefined();
+  });
 });

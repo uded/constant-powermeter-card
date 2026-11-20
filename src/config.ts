@@ -1,3 +1,5 @@
+import type { ChartKind } from './types/chart';
+
 export type DisplayMode = 'sparkline' | 'bar';
 
 export type TapAction =
@@ -18,6 +20,7 @@ export interface MeterConfig {
   critical?: number;
   display?: DisplayMode[];
   tap_action?: TapAction;
+  color?: string;
 }
 
 export interface CardConfig {
@@ -28,6 +31,9 @@ export interface CardConfig {
   sparkline_scale?: 'fixed' | 'auto';
   colors?: { normal?: string; warning?: string; critical?: string };
   blend?: boolean;
+  chart?: ChartKind | ChartKind[];
+  rows?: boolean;
+  total?: string;
   meters: (string | MeterConfig)[];
 }
 
@@ -44,6 +50,7 @@ export interface ResolvedMeter {
   twoSided: boolean;
   display: DisplayMode[];
   tapAction: TapAction;
+  color?: string;
   errors: string[];
 }
 
@@ -54,6 +61,11 @@ export interface ResolvedCard {
   scale: 'fixed' | 'auto';
   colors: { normal: string; warning: string; critical: string };
   blend: boolean;
+  timeChart?: 'stacked' | 'lines';
+  donut: boolean;
+  rows: boolean;
+  total?: string;
+  warnings: string[];
   meters: ResolvedMeter[];
 }
 
@@ -93,6 +105,24 @@ function parseDisplay(v: unknown, fallback: DisplayMode[]): DisplayMode[] {
   if (!Array.isArray(v)) return fallback;
   const modes = v.filter((m): m is DisplayMode => m === 'sparkline' || m === 'bar');
   return modes.length > 0 ? modes : fallback;
+}
+
+/** parseCharts reads chart as one kind or a list, dropping unknown values. */
+function parseCharts(v: unknown): {
+  timeChart?: 'stacked' | 'lines';
+  donut: boolean;
+  warnings: string[];
+} {
+  const list = Array.isArray(v) ? v : [v];
+  const kinds = list.filter(
+    (k): k is ChartKind => k === 'stacked' || k === 'lines' || k === 'donut',
+  );
+  const timeCharts = kinds.filter((k): k is 'stacked' | 'lines' => k !== 'donut');
+  return {
+    timeChart: timeCharts[0],
+    donut: kinds.includes('donut'),
+    warnings: new Set(timeCharts).size > 1 ? ['chart_conflict'] : [],
+  };
 }
 
 function parseTapAction(v: unknown): TapAction {
@@ -178,6 +208,7 @@ function resolveMeter(raw: unknown, panelDisplay: DisplayMode[]): ResolvedMeter 
     twoSided,
     display: parseDisplay(cfg.display, panelDisplay),
     tapAction: parseTapAction(cfg.tap_action),
+    color: str(cfg.color),
     errors,
   };
 }
@@ -193,6 +224,8 @@ export function normalizeConfig(raw: unknown): ResolvedCard {
   const colors = isObject(raw.colors) ? raw.colors : {};
   const hours = Math.min(MAX_HOURS, Math.max(MIN_HOURS, num(raw.hours) ?? 1));
 
+  const { timeChart, donut, warnings } = parseCharts(raw.chart);
+
   return {
     title: str(raw.title),
     display,
@@ -204,6 +237,11 @@ export function normalizeConfig(raw: unknown): ResolvedCard {
       critical: str(colors.critical) ?? DEFAULT_COLORS.critical,
     },
     blend: raw.blend !== false,
+    timeChart,
+    donut,
+    rows: raw.rows !== false || (timeChart === undefined && !donut),
+    total: str(raw.total),
+    warnings,
     meters: raw.meters.map((m) => resolveMeter(m, display)),
   };
 }
