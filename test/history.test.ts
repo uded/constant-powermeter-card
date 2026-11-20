@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  isConnectionLost,
   applyStreamMessage,
   StreamHistorySource,
   trimStore,
@@ -370,6 +371,33 @@ describe('StreamHistorySource', () => {
     expect(conn.calls).toHaveLength(2);
     expect(err).toHaveBeenCalledTimes(1);
     src.close();
+  });
+
+  it('stays quiet when the socket drops mid-subscribe and resubscribes on ready', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const conn = mockConnection();
+    conn.failNext(Object.assign(new Error('Connection lost'), { code: 3 }));
+    const src = new StreamHistorySource(
+      conn,
+      () => {},
+      () => 3_600_000,
+    );
+    src.update(['sensor.a'], 1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(conn.calls[0].rejected).toBe(true);
+    expect(err).not.toHaveBeenCalled();
+    conn.fireReady();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(conn.calls).toHaveLength(2);
+    expect(conn.calls[1].rejected).toBeFalsy();
+    src.close();
+  });
+
+  it('recognises both connection-lost shapes', () => {
+    expect(isConnectionLost(3)).toBe(true);
+    expect(isConnectionLost({ code: 3, message: 'Connection lost' })).toBe(true);
+    expect(isConnectionLost(new Error('boom'))).toBe(false);
+    expect(isConnectionLost({ code: 2 })).toBe(false);
   });
 
   it('restarts the debounce window on every update', async () => {

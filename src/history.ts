@@ -10,6 +10,18 @@ export interface StreamMessage {
 const DEBOUNCE_MS = 1000;
 const TRIM_INTERVAL_MS = 60_000;
 const HOUR_MS = 3_600_000;
+/** home-assistant-js-websocket's ERR_CONNECTION_LOST. */
+const ERR_CONNECTION_LOST = 3;
+
+/** isConnectionLost matches both shapes the HA websocket library rejects with on a dropped socket. */
+export function isConnectionLost(err: unknown): boolean {
+  if (err === ERR_CONNECTION_LOST) return true;
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { code?: unknown }).code === ERR_CONNECTION_LOST
+  );
+}
 
 function parseValue(s: string): number | null {
   if (s.trim() === '') return null;
@@ -186,7 +198,8 @@ export class StreamHistorySource implements HistorySource {
         else void unsub().catch(() => {});
       })
       .catch((err: unknown) => {
-        if (gen === this.generation)
+        // A socket that drops mid-subscribe is routine: the `ready` handler resubscribes.
+        if (gen === this.generation && !isConnectionLost(err))
           console.error('powermeter-card: history/stream subscription failed', err);
       });
   }
