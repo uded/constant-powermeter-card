@@ -809,7 +809,9 @@ export class ConstantPowermeterCard extends LitElement {
       font-size: 13px;
       font-variant-numeric: tabular-nums;
     }
-    @container (max-width: 360px) {
+    /* The query measures the .chart content box, 32 px narrower than the card (16 px
+       padding each side), so 328 px here wraps the donut at a 360 px wide card. */
+    @container (max-width: 328px) {
       .chart-body {
         flex-direction: column;
         align-items: stretch;

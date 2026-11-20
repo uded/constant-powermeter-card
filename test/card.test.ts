@@ -722,6 +722,13 @@ describe('combined charts', () => {
     expect(css).toMatch(/\.chart-body\.donut-only\s*\{\s*justify-content:\s*center/);
   });
 
+  it('wraps the donut below the time chart at about 360 px card width', () => {
+    const css = (ConstantPowermeterCard.styles as unknown as { cssText: string }).cssText;
+    // The container is the .chart content box: card width minus 2 x 16 px padding.
+    expect(css).toMatch(/\.chart\s*\{[^}]*padding:\s*12px 16px 0/);
+    expect(css).toContain('@container (max-width: 328px)');
+  });
+
   it('shows no legend when rows are shown', async () => {
     const el = await mount(
       { chart: 'donut', meters: ['sensor.a'] },
