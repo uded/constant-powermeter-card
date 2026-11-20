@@ -172,7 +172,24 @@ export function meterErrors(m: ResolvedMeter, raw?: MeterConfig): Record<string,
     const negative = THRESHOLDS.filter((t) => (raw?.[t] ?? 0) < 0);
     for (const t of negative.length > 0 ? negative : ['normal']) out[t] = MESSAGES.negative;
   }
-  if (m.errors.includes('thresholds_order')) out.warning ??= MESSAGES.order;
+  if (m.errors.includes('thresholds_order')) {
+    const fields = raw ? orderConflicts(raw, m.twoSided) : [];
+    for (const t of fields.length > 0 ? fields : ['warning']) out[t] ??= MESSAGES.order;
+  }
+  return out;
+}
+
+/** orderConflicts lists each explicit threshold that is below an explicit one before it. */
+function orderConflicts(raw: MeterConfig, twoSided: boolean): Threshold[] {
+  const out: Threshold[] = [];
+  let highest = -Infinity;
+  for (const t of THRESHOLDS) {
+    const v = raw[t];
+    if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+    const x = twoSided ? Math.abs(v) : v;
+    if (x < highest) out.push(t);
+    highest = Math.max(highest, x);
+  }
   return out;
 }
 
@@ -372,7 +389,12 @@ export function meterHelper(
   if (m?.twoSided && (field === 'min' || (threshold && !empty))) return MESSAGES.twoSided;
   if (!empty) return undefined;
   if (threshold && m) {
-    const def = `Default: ${fmt(defaultThresholds(m.min, m.max)[field as Threshold])}`;
+    // Without an order conflict the resolved value is the derived default, already clamped
+    // between the explicit thresholds; with one the values were sorted, so show the plain default.
+    const effective = m.errors.includes('thresholds_order')
+      ? defaultThresholds(m.min, m.max)[field as Threshold]
+      : m[field as Threshold];
+    const def = `Default: ${fmt(effective)}`;
     return m.twoSided ? `${def} · two-sided, thresholds apply to |value|` : def;
   }
   if (field === 'min') return `Default: ${DEFAULT_MIN}`;

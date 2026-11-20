@@ -121,6 +121,24 @@ export function defaultThresholds(
   return { normal: min + 0.2 * range, warning: min + 0.6 * range, critical: max };
 }
 
+/**
+ * deriveThresholds fills the thresholds the user left out. Each derived value is clamped
+ * between the explicit values below and above it, so one explicit threshold never moves
+ * another (critical 2500 alone keeps warning at most 2500 instead of sorting past it).
+ */
+function deriveThresholds(
+  explicit: (number | undefined)[],
+  derived: { normal: number; warning: number; critical: number },
+): number[] {
+  const base = [derived.normal, derived.warning, derived.critical];
+  return explicit.map((t, i) => {
+    if (t !== undefined) return t;
+    const below = explicit.slice(0, i).filter((x): x is number => x !== undefined);
+    const above = explicit.slice(i + 1).filter((x): x is number => x !== undefined);
+    return Math.min(Math.max(base[i], ...below), ...above);
+  });
+}
+
 function resolveMeter(raw: unknown, panelDisplay: DisplayMode[]): ResolvedMeter {
   const cfg: Obj = typeof raw === 'string' ? { entity: raw } : isObject(raw) ? raw : {};
   const entity = str(cfg.entity);
@@ -135,21 +153,17 @@ function resolveMeter(raw: unknown, panelDisplay: DisplayMode[]): ResolvedMeter 
   }
 
   const twoSided = min < 0;
-  const derived = defaultThresholds(min, max);
-  let thresholds = [
-    num(cfg.normal) ?? derived.normal,
-    num(cfg.warning) ?? derived.warning,
-    num(cfg.critical) ?? derived.critical,
-  ];
-
-  if (twoSided && thresholds.some((t) => t < 0)) {
+  let explicit = [num(cfg.normal), num(cfg.warning), num(cfg.critical)];
+  if (twoSided && explicit.some((t) => t !== undefined && t < 0)) {
     errors.push('thresholds_negative');
-    thresholds = thresholds.map(Math.abs);
+    explicit = explicit.map((t) => (t === undefined ? t : Math.abs(t)));
   }
+  const given = explicit.filter((t): t is number => t !== undefined);
+  if (given.some((t, i) => i > 0 && t < given[i - 1])) errors.push('thresholds_order');
 
-  const sorted = [...thresholds].sort((a, b) => a - b);
-  if (sorted.some((t, i) => t !== thresholds[i])) errors.push('thresholds_order');
-  const [normal, warning, critical] = sorted;
+  const [normal, warning, critical] = deriveThresholds(explicit, defaultThresholds(min, max)).sort(
+    (a, b) => a - b,
+  );
 
   return {
     entity,

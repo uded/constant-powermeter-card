@@ -102,6 +102,26 @@ describe('meterErrors', () => {
     expect(meterErrors(m)).toEqual({ warning: 'Normal ≤ Warning ≤ Critical' });
   });
 
+  it('marks the explicit threshold that breaks the order when the raw config is given', () => {
+    const raw = { entity: 'a', normal: 3000, critical: 2000 };
+    expect(meterErrors(resolve(raw), raw)).toEqual({ critical: 'Normal ≤ Warning ≤ Critical' });
+    const raw2 = { entity: 'a', normal: 4000, warning: 1000 };
+    expect(meterErrors(resolve(raw2), raw2)).toEqual({ warning: 'Normal ≤ Warning ≤ Critical' });
+  });
+
+  it('reports no order error when only one explicit threshold is set', () => {
+    const raw = { entity: 'a', min: 0, max: 5000, critical: 2500 };
+    expect(meterErrors(resolve(raw), raw)).toEqual({});
+    const raw2 = { entity: 'a', min: 0, max: 5000, normal: 4000 };
+    expect(meterErrors(resolve(raw2), raw2)).toEqual({});
+  });
+
+  it('shows the clamped derived default in the helper', () => {
+    const raw = { entity: 'a', min: 0, max: 5000, critical: 2500 };
+    expect(meterHelper('warning', raw, resolve(raw))).toBe('Default: 2500');
+    expect(meterHelper('normal', raw, resolve(raw))).toBe('Default: 1000');
+  });
+
   it('maps thresholds_negative to each negative field', () => {
     const raw = { entity: 'a', min: -1000, max: 1000, normal: -200, critical: -900 };
     expect(meterErrors(resolve(raw), raw)).toEqual({

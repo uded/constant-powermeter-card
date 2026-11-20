@@ -53,6 +53,51 @@ describe('normalizeConfig', () => {
     expect(m.errors).toContain('thresholds_order');
   });
 
+  it('clamps derived thresholds below an explicit critical instead of sorting past it', () => {
+    const m = normalizeConfig({
+      type: 'x',
+      meters: [{ entity: 'sensor.a', min: 0, max: 5000, critical: 2500 }],
+    }).meters[0];
+    expect([m.normal, m.warning, m.critical]).toEqual([1000, 2500, 2500]);
+    expect(m.errors).toEqual([]);
+  });
+
+  it('raises derived thresholds above an explicit normal set past the derived warning', () => {
+    const m = normalizeConfig({
+      type: 'x',
+      meters: [{ entity: 'sensor.a', min: 0, max: 5000, normal: 4000 }],
+    }).meters[0];
+    expect([m.normal, m.warning, m.critical]).toEqual([4000, 4000, 5000]);
+    expect(m.errors).toEqual([]);
+  });
+
+  it('clamps a derived warning between explicit normal and critical', () => {
+    const m = normalizeConfig({
+      type: 'x',
+      meters: [{ entity: 'sensor.a', min: 0, max: 5000, normal: 100, critical: 500 }],
+    }).meters[0];
+    expect([m.normal, m.warning, m.critical]).toEqual([100, 500, 500]);
+    expect(m.errors).toEqual([]);
+  });
+
+  it('clamps derived values on two-sided meters against the absolute explicit value', () => {
+    const m = normalizeConfig({
+      type: 'x',
+      meters: [{ entity: 'sensor.g', min: -8000, max: 4000, critical: 3000 }],
+    }).meters[0];
+    expect([m.normal, m.warning, m.critical]).toEqual([1600, 3000, 3000]);
+    expect(m.errors).toEqual([]);
+  });
+
+  it('still errors and sorts when explicit thresholds conflict with each other', () => {
+    const m = normalizeConfig({
+      type: 'x',
+      meters: [{ entity: 'sensor.a', min: 0, max: 5000, normal: 3000, critical: 2000 }],
+    }).meters[0];
+    expect(m.errors).toEqual(['thresholds_order']);
+    expect([m.normal, m.warning, m.critical]).toEqual([2000, 2000, 3000]);
+  });
+
   it('rejects negative thresholds on two-sided meters', () => {
     const m = normalizeConfig({
       type: 'x',
