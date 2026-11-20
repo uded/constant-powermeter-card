@@ -2,13 +2,7 @@
 
 A Home Assistant Lovelace card that shows several power meters in one panel. Each meter has its own thresholds, a live value, and a sparkline, a bar, or both. It uses `ha-card` and your theme variables, so it looks like the built-in cards in any light or dark theme.
 
-```
-Kitchen      ▁▂▃▅▇▆▄▃▄▅▆      1 240 W
-████████████████░░░░░░░░░░░░░░░░░░░░
-
-Grid                         -1 200 W
-░░░░░▓▓▓▓|░░░░░░░░░░░░░░░░░░░░
-```
+![Constant Powermeter Card with a two-sided grid meter, an unavailable meter, a steady meter and a noisy meter](https://raw.githubusercontent.com/uded/constant-powermeter-card/main/docs/images/card.png)
 
 Features:
 
